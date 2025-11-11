@@ -1,22 +1,36 @@
-param([string]$Branch = "main")
+param(
+  [string]$Branch = "main",
+  [int]$IntervalSec = 3
+)
 
-Write-Host "✅ Git Auto Sync started on branch '$Branch'"
-git checkout -B $Branch
+$ErrorActionPreference = "SilentlyContinue"
 
-# 파일 변경 감시기
-$fsw = New-Object IO.FileSystemWatcher (Get-Location), -1
-$fsw.IncludeSubdirectories = $true
-$fsw.EnableRaisingEvents = $true
+# 레포 루트 = (tools\auto-sync.ps1)의 상위 폴더
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
 
-Register-ObjectEvent $fsw Changed -Action {
-    Start-Sleep -Milliseconds 1000
+Write-Host "✅ Git Auto Sync (polling) started at $repoRoot on branch '$Branch'"
+git checkout -B $Branch | Out-Null
+
+function Sync-Once {
+    $changes = git status --porcelain
+    if (-not $changes) { return }
+
+    Write-Host "📝 Changes detected:`n$changes"
     git add -A
+
     $msg = "auto: sync $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-    git commit -m $msg 2>$null
-    git push -u origin $Branch 2>$null
-    Write-Host "📤 [$msg] pushed to $Branch"
-} | Out-Null
+    git commit -m $msg | Out-Null
 
-Write-Host "🟢 Watching for changes... Press Ctrl+C to stop."
-while ($true) { Start-Sleep -Seconds 2 }
+    # 원격 최신 반영 후 푸시(충돌 방지)
+    git fetch origin $Branch | Out-Null
+    git pull --rebase origin $Branch | Out-Null
 
+    git push -u origin $Branch
+    Write-Host "📤 $msg"
+}
+
+while ($true) {
+    Sync-Once
+    Start-Sleep -Seconds $IntervalSec
+}
