@@ -1,4 +1,8 @@
 from pathlib import Path
+from .config import get_config
+
+# 설정 주입 (하드코딩 제거)
+CFG = get_config()
 
 # === 경로 ===
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -12,13 +16,14 @@ DRAW_POINT_LIMIT = 200
 UI_UPDATE_INTERVAL = 1000   # 🔥 UI 갱신 주기 → 1초로 늘려서 버벅임 완화
 
 # === 픽셀맵 파라미터 ===
-PIXEL_MAP_MAX_SIDE = 256    # 🔥 분류맵 계산용 최대 해상도 축소 (성능 개선)
+# 분류맵 계산용 최대 해상도 축소 (성능 개선)
+PIXEL_MAP_MAX_SIDE = CFG.pixel_map_max_side
 
 # === Sphere 기본 반경 ===
-SPHERE_RADIUS = 10
+SPHERE_RADIUS = CFG.sphere_radius
 
 # === 캡처 관련 ===
-CAPTURE_COUNT = 100
+CAPTURE_COUNT = CFG.capture_count
 CAPTURE_TIMEOUT = 5000
 JPEG_QUALITY = 90   
 INTERVAL_SEC = 0.1

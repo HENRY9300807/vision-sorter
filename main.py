@@ -34,6 +34,14 @@ if __name__ == "__main__":
     save_defs()
 
     # ── 혹시 프로세스가 남아 있다면 정리
-    if cap_proc and cap_proc.poll() is None:
-        cap_proc.terminate()
-        print("📷 백그라운드 캡쳐 프로세스 종료료")
+    try:
+        if cap_proc and cap_proc.poll() is None:
+            cap_proc.terminate()
+            cap_proc.wait(timeout=3)
+            # Windows에서 잔류 시 강제 종료
+            if cap_proc.poll() is None:
+                cap_proc.kill()
+            print("📷 백그라운드 캡쳐 프로세스 종료됨")
+    except Exception as e:
+        # 무조건 죽이되, 예외는 로깅만
+        print(f"[WARN] 캡쳐 프로세스 종료 중 예외: {e}")
