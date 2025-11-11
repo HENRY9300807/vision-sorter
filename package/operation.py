@@ -15,7 +15,7 @@ UI_UPDATE_INTERVAL = 1000   # 🔥 UI 갱신 주기 → 1초로 늘려서 버벅
 PIXEL_MAP_MAX_SIDE = 256    # 🔥 분류맵 계산용 최대 해상도 축소 (성능 개선)
 
 # === Sphere 기본 반경 ===
-SPHERE_RADIUS = 20
+SPHERE_RADIUS = 10
 
 # === 캡처 관련 ===
 CAPTURE_COUNT = 100
