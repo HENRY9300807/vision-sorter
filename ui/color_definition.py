@@ -508,11 +508,11 @@ class LinkedDualPainter(QtCore.QObject):
         QtCore.QTimer.singleShot(0, self._do_reset)
 
     def _do_reset(self):
-        """씬/오버레이 최신 상태로 다시 묶고 모두 지움"""
+        """씬/오버레이 최신 상태로 다시 묶고 오버레이만 지움(마스크는 유지)"""
         self.ovL.ensure_from_base()
         self.ovR.ensure_from_base()
-        self.ovL.clear_all()
-        self.ovR.clear_all()
+        self.ovL.clear_hint()
+        self.ovR.clear_hint()
         # 초기화 상태를 즉시 반영
         self._update_live()
         self._in_reset = False
