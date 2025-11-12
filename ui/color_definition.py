@@ -446,9 +446,11 @@ class LinkedDualPainter(QtCore.QObject):
         except Exception:
             return
         
-        if not self._ensure_ready():
+        # 항상 마스크/오버레이 준비
+        if not self.ovL.ensure_from_base() or not self.ovR.ensure_from_base():
             return
-        label_idx, color = self.label_selector()
+        
+        label_idx, color = self.label_selector()   # 1/2/3 반환
         # ✅ 디버그: 라벨 ID 확인
         if label_idx <= 0:
             print(f"[WARN] _paint_pair: invalid label_idx={label_idx} from label_selector")
