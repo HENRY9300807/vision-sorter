@@ -869,8 +869,16 @@ class PhotoViewer(QtWidgets.QDialog):
             return "background"
         return None
 
+    def _on_save_click(self):
+        """Save 버튼 클릭 → 마스크 저장"""
+        print("[UI] save clicked")
+        if hasattr(self, 'linked_painter'):
+            self.linked_painter.save_masks_and_recolor_right()
+        else:
+            print("[WARN] linked_painter not found")
+
     def confirm_colors(self):
-        """Save 버튼 → 임시 RGB를 Sphere로 등록하고 저장 + 오른쪽 즉시 갱신"""
+        """임시 RGB를 Sphere로 등록하고 저장 + 오른쪽 즉시 갱신 (색상 정의 저장용)"""
         for label, rgb_set in self.pending_colors.items():
             if rgb_set:
                 for rgb in rgb_set:
