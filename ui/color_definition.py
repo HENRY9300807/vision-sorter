@@ -431,6 +431,10 @@ class LinkedDualPainter(QtCore.QObject):
         if not self._ensure_ready():
             return
         label_idx, color = self.label_selector()
+        # ✅ 디버그: 라벨 ID 확인
+        if label_idx <= 0:
+            print(f"[WARN] _paint_pair: invalid label_idx={label_idx} from label_selector")
+            return
 
         if side == "left":
             # 좌측 라벨 페인트 + 우측 동기
