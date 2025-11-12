@@ -555,7 +555,6 @@ class LinkedDualPainter(QtCore.QObject):
         # ✅ 배경만({LABEL_BACKGROUND})이거나 라벨 없음(∅)이면 스킵
         if (not labelsR) or (labelsR <= {LABEL_BACKGROUND}):
             print(f"[SKIP] right is background-only (or no labels). labelsR={labelsR}, LABEL_BACKGROUND={LABEL_BACKGROUND}")
-            QMessageBox.information(self.root, "저장 스킵", "background만 지정되어 저장하지 않습니다.")
             # 하이라이트/라이브 상태는 정리/유지
             self.ovR.clear_hint()
             self._update_live()
@@ -564,7 +563,6 @@ class LinkedDualPainter(QtCore.QObject):
         # 2) 저장 상한 도달 시 저장 생략하되 선별은 계속
         if not self.saver.can_save():
             print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
-            QMessageBox.information(self.root, "저장 한도", "유효 저장 100장이 완료되었습니다. 선별은 계속됩니다.")
             self._update_live()
             return
 
