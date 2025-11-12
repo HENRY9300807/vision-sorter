@@ -482,12 +482,6 @@ class LinkedDualPainter(QtCore.QObject):
                 stats[u] = stats.get(u, 0) + c
         return stats
 
-    def _is_background_only(self, stats: dict) -> bool:
-        """배경만 있는지 확인."""
-        if not stats:
-            return True
-        present = set(stats.keys())
-        return present.issubset({0, LABEL_BACKGROUND})
 
     def _update_live(self):
         """라벨맵 기반 실시간 선별 신호/정보 파일 갱신(자바에서 폴링)."""
