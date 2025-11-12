@@ -621,6 +621,9 @@ class LinkedDualPainter(QtCore.QObject):
         # ✅ 변경: 라벨이 '전혀 없을 때'만 스킵. background-only는 저장 허용.
         if not labelsR:
             print(f"[SKIP] right has no labels -> skip. labelsR={labelsR}")
+            # 스킵 직전 (오른쪽 무라벨): 왼쪽에 라벨이 있으면 RGB만이라도 저장
+            if self.ovL.mask_idx is not None and np.any(self.ovL.mask_idx != 0):
+                self._save_color_defs()   # ✅ 오른쪽이 비어도 왼쪽 라벨로 RGB 저장
             # 하이라이트/라이브 상태는 정리/유지
             self.ovR.clear_hint()
             self._update_live()
@@ -649,6 +652,9 @@ class LinkedDualPainter(QtCore.QObject):
         # 오른쪽을 라벨 색으로 "바로" 재색칠
         self.ovR.recolor_from_labelmap(LABEL_COLORS)
         self.ovR.clear_hint()
+
+        # --- 정상 저장(마스크/NPY) 후 ---
+        self._save_color_defs()   # ✅ 라벨별 평균 RGB를 color_defs.json에 반영
 
         # 카운터 증가 + 진행도 갱신 + 실시간 상태 갱신
         self.saver.on_saved()
