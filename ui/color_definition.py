@@ -84,57 +84,44 @@ class OverlayMask:
         self._ensure_binding()
 
     def _ensure_binding(self):
-        # 씬 보장
+        # 씬 보장 및 아이템 재부착
         if self.view.scene() is None:
             self.view.setScene(QGraphicsScene(self.view))
         sc = self.view.scene()
 
-        # overlay_item이 삭제됐거나(None 포함) 유효하지 않으면 재생성
-        if (self.overlay_item is None) or sip.isdeleted(self.overlay_item):
-            self.overlay_item = QGraphicsPixmapItem()
-            self.overlay_item.setZValue(1000)
+        for attr in ("overlay_item", "hint_item"):
+            item = getattr(self, attr)
+            # 삭제되었으면 재생성
+            if item is None or sip.isdeleted(item):
+                item = QGraphicsPixmapItem()
+                setattr(self, attr, item)
+                item.setZValue(1000 if attr == "overlay_item" else 1001)
 
-        # 현재 overlay_item이 다른 씬에 붙어있거나, 씬이 바뀌었으면 재부착
-        try:
-            cur_sc = self.overlay_item.scene()
-        except Exception:
-            cur_sc = None
+            # 현재 씬에 부착
+            cur = None
+            try:
+                cur = item.scene()
+            except Exception:
+                cur = None
 
-        if cur_sc is not sc:
-            if cur_sc is not None:
-                try:
-                    cur_sc.removeItem(self.overlay_item)
-                except Exception:
-                    pass
-            if sc is not None:
-                sc.addItem(self.overlay_item)
+            if cur is not sc:
+                if cur is not None:
+                    try:
+                        cur.removeItem(item)
+                    except Exception:
+                        pass
+                if sc is not None:
+                    sc.addItem(item)
 
-        # qimage가 이미 있다면 최신 픽스맵으로 다시 세팅(씬 교체 후 표시 유지)
+        # 기존 QImage가 있으면 다시 세팅
         if self.qimage is not None and not self.qimage.isNull():
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        if self.hint_qimage is not None and not self.hint_qimage.isNull():
+            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
 
-    def _find_base_pixmap_item(self):
-        sc = self.view.scene()
-        if not sc:
-            return None
-        base = None
-        area = -1
-        for it in sc.items():
-            try:
-                if sip.isdeleted(it):
-                    continue
-                # overlay 자기 자신은 제외
-                if isinstance(it, QGraphicsPixmapItem) and it is not self.overlay_item:
-                    pm = it.pixmap()
-                    if pm.isNull():
-                        continue
-                    a = pm.width() * pm.height()
-                    if a > area:
-                        base, area = it, a
-            except Exception:
-                # 삭제 타이밍에 걸리면 그냥 스킵
-                continue
-        return base
+    def _find_base(self):
+        """기저 픽스맵 아이템 찾기."""
+        return _largest_pixmap_item(self.view.scene())
 
     def ensure_from_base(self) -> bool:
         """기저 픽스맵 크기에 맞춰 qimage/mask를 보장."""
