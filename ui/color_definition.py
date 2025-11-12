@@ -376,32 +376,25 @@ class PhotoViewer(QtWidgets.QDialog):
         else:
             self._show_message("폴더가 비어 있습니다")
 
-        # === 라디오버튼(product/background/defect)에 따른 브러시 색상 ===
-        self._label_colors = {
-            "product":    QtGui.QColor(40, 190, 80, 170),
-            "background": QtGui.QColor(180, 180, 180, 170),
-            "defect":     QtGui.QColor(250, 70, 70, 170),
+        # === 라디오버튼(product/background/defect)에 따른 라벨 인덱스 & 표색 ===
+        self._label_color = {
+            1: QtGui.QColor(40, 190, 80, 170),   # product
+            2: QtGui.QColor(60, 160, 255, 170),  # background
+            3: QtGui.QColor(250, 70, 70, 170),   # defect
         }
-        def _current_color():
-            prod = self.findChild(QtWidgets.QRadioButton, "product")
-            back = self.findChild(QtWidgets.QRadioButton, "background")
-            defe = self.findChild(QtWidgets.QRadioButton, "defect")
-            if defe and defe.isChecked():
-                return self._label_colors["defect"]
-            if back and back.isChecked():
-                return self._label_colors["background"]
-            return self._label_colors["product"]
+        def label_selector():
+            if self.defect.isChecked():
+                return 3, self._label_color[3]
+            if self.background.isChecked():
+                return 2, self._label_color[2]
+            return 1, self._label_color[1]  # product 기본
 
-        # 두 QGraphicsView 객체 (이미 uic.loadUi로 로드됨)
+        # 두 QGraphicsView (objectName 기준)
         left_view = self.real_photo
         right_view = self.pixel_view
 
-        # 페인터 장착 (둘 다; 필요하면 한쪽만 써도 됨)
-        # auto_clear_on_next=False: 중앙에서 한 번만 처리하기 위해 자동 연결 끔
-        if left_view:
-            self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=False)
-        if right_view:
-            self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=False)
+        # 동기 페인터 장착: 좌↔우 상호 연동 + 저장 버튼 연결 + next 안전 초기화
+        self.linked_painter = LinkedDualPainter(self, left_view, right_view, label_selector, radius=10)
 
         # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
@@ -458,15 +451,10 @@ class PhotoViewer(QtWidgets.QDialog):
             self._initial_load_done = True
 
     def _on_next_safely(self):
-        """nextButton 클릭 시 안전하게 처리: 페인터 clear 후 다음 틱에서 줌 리셋"""
-        # 1) 현재 남아있는 브러시/오버레이 안전 삭제
-        if hasattr(self, 'left_painter'):
-            self.left_painter.clear()
-        if hasattr(self, 'right_painter'):
-            self.right_painter.clear()
-        # 2) 이미지 로드 (next_photo 호출)
+        """nextButton 클릭 시 안전하게 처리: 페인터 clear는 linked_painter.on_next에서 처리"""
+        # 1) 이미지 로드 (next_photo 호출)
         self.next_photo()
-        # 3) 이미지가 교체될 시간을 한 틱 주고, 그 다음에 원배율로 맞춤
+        # 2) 이미지가 교체될 시간을 한 틱 주고, 그 다음에 원배율로 맞춤
         QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit)
 
     def next_photo(self):
@@ -488,10 +476,8 @@ class PhotoViewer(QtWidgets.QDialog):
         # 오른쪽도 초기화
         self.pixel_scene.clear()
         # 페인터 마크도 초기화
-        if hasattr(self, 'left_painter'):
-            self.left_painter.clear()
-        if hasattr(self, 'right_painter'):
-            self.right_painter.clear()
+        if hasattr(self, 'linked_painter'):
+            self.linked_painter.clear_both()
 
     def update_photos(self):
         new_files = self._scan_files()
