@@ -293,54 +293,110 @@ class LinkedDualPainter(QtCore.QObject):
         if sv:
             sv.clicked.connect(self.save_masks_and_recolor_right)
 
-    # ---------- 좌표 변환/칠하기 ----------
-    def _norm_from_local(self, ov: OverlayMask, pt: QtCore.QPoint):
-        """해당 오버레이의 로컬 좌표 → (nx, ny) 정규화 [0~1]."""
-        size = ov.base_size
-        if size is None:
-            return None
-        w, h = size
-        if not w or not h or w <= 0 or h <= 0:
-            return None
-        nx = np.clip(pt.x() / w, 0.0, 1.0)
-        ny = np.clip(pt.y() / h, 0.0, 1.0)
-        return (nx, ny)
+    # ---------- 내부 유틸 ----------
+    def _ensure_ready(self):
+        if self._in_reset:
+            return False
+        return (self.ovL.ensure_from_base() and self.ovR.ensure_from_base())
 
-    def _local_from_norm(self, ov: OverlayMask, nx: float, ny: float):
-        """정규화 좌표 → 해당 오버레이의 로컬 픽셀 좌표."""
-        size = ov.base_size
-        if size is None:
-            return None
-        w, h = size
-        if not w or not h:
-            return None
-        x = int(round(nx * w))
-        y = int(round(ny * h))
-        return QtCore.QPoint(x, y)
+    def _qimage_to_rgb_array(self, pm: QtGui.QPixmap) -> np.ndarray:
+        """QPixmap -> RGB ndarray(H,W,3)"""
+        qimg = pm.toImage().convertToFormat(QtGui.QImage.Format_RGB888)
+        h, w = qimg.height(), qimg.width()
+        ptr = qimg.bits()
+        ptr.setsize(h * w * 3)
+        arr = np.frombuffer(ptr, np.uint8).reshape((h, w, 3)).copy()
+        return arr
 
-    def _paint_pair(self, src_view: QGraphicsView, view_pos: QtCore.QPoint):
-        # 준비(기저 픽스맵 크기 보장)
-        if not (self.ovL.ensure_from_base() and self.ovR.ensure_from_base()):
+    def _right_base_rgb(self):
+        """오른쪽 픽셀화 뷰의 베이스 이미지를 RGB ndarray로 가져오기"""
+        rpmi = _largest_pixmap_item(self.right.scene())
+        if rpmi is None:
+            return None
+        try:
+            pm = rpmi.pixmap()
+        except Exception:
+            return None
+        if pm.isNull():
+            return None
+        return self._qimage_to_rgb_array(pm)
+
+    def _make_match_mask_on_right(self, rgb: np.ndarray, tol: int = MATCH_TOL):
+        """오른쪽 베이스 이미지에서 rgb(1x3)와 같은(±tol) 위치를 True로."""
+        arr = self._right_base_rgb()
+        if arr is None:
+            return None
+        if tol <= 0:
+            mask = np.all(arr == rgb[None, None, :], axis=2)
+        else:
+            mask = np.all(np.abs(arr.astype(np.int16) - rgb[None, None, :].astype(np.int16)) <= tol, axis=2)
+        return mask
+
+    def _color_at_left(self, x: int, y: int):
+        """왼쪽 베이스 이미지에서 (x,y) 위치의 RGB 값 가져오기"""
+        lpmi = _largest_pixmap_item(self.left.scene())
+        if lpmi is None:
+            return None
+        try:
+            pm = lpmi.pixmap()
+        except Exception:
+            return None
+        if pm.isNull():
+            return None
+        arr = self._qimage_to_rgb_array(pm)
+        if 0 <= y < arr.shape[0] and 0 <= x < arr.shape[1]:
+            return arr[y, x].copy()   # shape (3,)
+        return None
+
+    def _paint_pair(self, side: str, view_pos: QtCore.QPoint):
+        if not self._ensure_ready():
             return
         label_idx, color = self.label_selector()
 
-        # 1) 소스 쪽 좌표
-        src_ov = self.ovL if src_view is self.left else self.ovR
-        trg_ov = self.ovR if src_view is self.left else self.ovL
+        if side == "left":
+            # 좌측 라벨 페인트 + 우측 동기
+            scene_pt = self.left.mapToScene(view_pos)
+            lpt = self.ovL.scene_to_local(scene_pt)
+            self.ovL.paint_disk(lpt, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
-        scene_pos = src_view.mapToScene(view_pos)
-        local_src = src_ov.scene_to_local(scene_pos)
-        norm = self._norm_from_local(src_ov, local_src)
-        if norm is None:
-            return
+            # 좌 -> 우 정규화 매핑
+            szL = self.ovL.base_size
+            szR = self.ovR.base_size
+            if szL and szR:
+                lx, ly = lpt.x(), lpt.y()
+                rx = int(round(lx * (szR[0]/float(szL[0]))))
+                ry = int(round(ly * (szR[1]/float(szL[1]))))
+                self.ovR.paint_disk(QtCore.QPoint(rx, ry), self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
-        # 2) 소스에 칠하기
-        src_ov.paint_dot(local_src, self.radius, color, label_idx)
+            # === 같은 RGB값 하이라이트 (좌측 픽셀의 RGB 기준으로 우측에 표시) ===
+            rgb = self._color_at_left(lpt.x(), lpt.y())
+            if rgb is not None:
+                mask = self._make_match_mask_on_right(rgb, MATCH_TOL)
+                if mask is not None:
+                    self.ovR.show_match_hint(mask, MATCH_HINT_COLOR)
 
-        # 3) 정규화 좌표로 상대편에도 동기 칠하기
-        local_trg = self._local_from_norm(trg_ov, *norm)
-        if local_trg is not None:
-            trg_ov.paint_dot(local_trg, self.radius, color, label_idx)
+        else:
+            # 우측 라벨 페인트 + 좌측 동기
+            scene_pt = self.right.mapToScene(view_pos)
+            rpt = self.ovR.scene_to_local(scene_pt)
+            self.ovR.paint_disk(rpt, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+
+            # 우 -> 좌 정규화 매핑
+            szL = self.ovL.base_size
+            szR = self.ovR.base_size
+            if szL and szR:
+                rx, ry = rpt.x(), rpt.y()
+                lx = int(round(rx * (szL[0]/float(szR[0]))))
+                ly = int(round(ry * (szL[1]/float(szR[1]))))
+                self.ovL.paint_disk(QtCore.QPoint(lx, ly), self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+
+            # (옵션) 우측에서 찍은 RGB를 기준으로도 하이라이트 가능
+            rb = self._right_base_rgb()
+            if rb is not None and 0 <= rpt.y() < rb.shape[0] and 0 <= rpt.x() < rb.shape[1]:
+                rgb = rb[rpt.y(), rpt.x()].copy()
+                mask = self._make_match_mask_on_right(rgb, MATCH_TOL)
+                if mask is not None:
+                    self.ovR.show_match_hint(mask, MATCH_HINT_COLOR)
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
