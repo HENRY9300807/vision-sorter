@@ -243,10 +243,33 @@ class PhotoViewer(QtWidgets.QDialog):
         else:
             self._show_message("폴더가 비어 있습니다")
 
-        # 드로잉 관련(왼쪽에서만 드래그)
+        # === 라디오버튼(product/background/defect)에 따른 브러시 색상 ===
+        def _current_color():
+            if getattr(self, "product", None) and self.product.isChecked():
+                return QtGui.QColor(0, 200, 0, 160)        # product = Green
+            if getattr(self, "background", None) and self.background.isChecked():
+                return QtGui.QColor(0, 140, 255, 160)     # background = Blue
+            if getattr(self, "defect", None) and self.defect.isChecked():
+                return QtGui.QColor(255, 60, 60, 160)     # defect = Red
+            return QtGui.QColor(255, 200, 0, 160)         # fallback (yellow)
+
+        # === 두 뷰(왼쪽 real_photo, 오른쪽 pixel_view)에 동시에 적용 가능한 페인터 생성 ===
+        self.painter = DualPainter(self.real_photo, self.pixel_view, color_getter=_current_color, radius=10, parent=self)
+
+        # (선택) 브러시 크기 조절을 핫키로: Ctrl + 휠
+        self._original_left_wheel = self.real_photo.wheelEvent
+        self._original_right_wheel = self.pixel_view.wheelEvent
+        self.real_photo.wheelEvent = self._wrap_wheel(self._original_left_wheel)
+        self.pixel_view.wheelEvent = self._wrap_wheel(self._original_right_wheel)
+
+        # 다음 버튼 누를 때 오버레이도 같이 초기화(줌 리셋과 병행 연결 가능)
+        self.nextButton.clicked.connect(self.painter.clear_both)
+
+        # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
         self.selected_points = []
         self.pending_colors = {}  # 임시 RGB 저장
+        # 기존 eventFilter는 유지하되, 페인터와 충돌하지 않도록 함
         self.real_photo.viewport().installEventFilter(self)
 
         # main.py에서 주입 가능
