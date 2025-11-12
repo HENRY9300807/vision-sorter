@@ -681,7 +681,15 @@ class PhotoViewer(QtWidgets.QDialog):
         self.clearButton.clicked.connect(self.clear_folder)
         # nextButton은 중앙에서 안전하게 처리 (페인터 clear + 줌 리셋)
         self.nextButton.clicked.connect(self._on_next_safely)
-        self.saveButton.clicked.connect(self.confirm_colors)
+        # Save 버튼: 마스크 저장용 (단일 연결 보장)
+        sv = self.findChild(QtWidgets.QPushButton, "saveButton")
+        if sv:
+            while True:
+                try:
+                    sv.clicked.disconnect()
+                except TypeError:
+                    break
+            sv.clicked.connect(self._on_save_click)
         self.exitButton.clicked.connect(self.safe_exit)
         self.clearDataButton.clicked.connect(self.clear_data)
 
