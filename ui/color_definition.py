@@ -533,7 +533,6 @@ class LinkedDualPainter(QtCore.QObject):
         # 0) 마스크 유효성
         if self.ovL.mask_idx is None and self.ovR.mask_idx is None:
             print("[INFO] 저장할 마스크가 없습니다.")
-            QMessageBox.information(self.root, "저장 건너뜀", "라벨이 비어 있어 저장하지 않습니다.")
             self._update_live()
             return
 
