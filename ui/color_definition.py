@@ -213,26 +213,28 @@ class PhotoViewer(QtWidgets.QDialog):
             self._show_message("폴더가 비어 있습니다")
 
         # === 라디오버튼(product/background/defect)에 따른 브러시 색상 ===
+        self._label_colors = {
+            "product":    QtGui.QColor(40, 190, 80, 170),
+            "background": QtGui.QColor(180, 180, 180, 170),
+            "defect":     QtGui.QColor(250, 70, 70, 170),
+        }
         def _current_color():
-            if getattr(self, "product", None) and self.product.isChecked():
-                return QtGui.QColor(0, 200, 0, 160)        # product = Green
-            if getattr(self, "background", None) and self.background.isChecked():
-                return QtGui.QColor(0, 140, 255, 160)     # background = Blue
-            if getattr(self, "defect", None) and self.defect.isChecked():
-                return QtGui.QColor(255, 60, 60, 160)     # defect = Red
-            return QtGui.QColor(255, 200, 0, 160)         # fallback (yellow)
+            prod = self.findChild(QtWidgets.QRadioButton, "product")
+            back = self.findChild(QtWidgets.QRadioButton, "background")
+            defe = self.findChild(QtWidgets.QRadioButton, "defect")
+            if defe and defe.isChecked():
+                return self._label_colors["defect"]
+            if back and back.isChecked():
+                return self._label_colors["background"]
+            return self._label_colors["product"]
 
-        # === 두 뷰(왼쪽 real_photo, 오른쪽 pixel_view)에 동시에 적용 가능한 페인터 생성 ===
-        self.painter = DualPainter(self.real_photo, self.pixel_view, color_getter=_current_color, radius=10, parent=self)
+        # 두 QGraphicsView 객체 찾기(오브젝트명은 Qt Designer의 Object Inspector 기준)
+        left_view = self.findChild(QGraphicsView, "real_photo")
+        right_view = self.findChild(QGraphicsView, "pixel_view")
 
-        # (선택) 브러시 크기 조절을 핫키로: Ctrl + 휠
-        self._original_left_wheel = self.real_photo.wheelEvent
-        self._original_right_wheel = self.pixel_view.wheelEvent
-        self.real_photo.wheelEvent = self._wrap_wheel(self._original_left_wheel)
-        self.pixel_view.wheelEvent = self._wrap_wheel(self._original_right_wheel)
-
-        # 다음 버튼 누를 때 오버레이도 같이 초기화(줌 리셋과 병행 연결 가능)
-        self.nextButton.clicked.connect(self.painter.clear_both)
+        # 페인터 장착 (둘 다; 필요하면 한쪽만 써도 됨)
+        self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=True)
+        self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=True)
 
         # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
