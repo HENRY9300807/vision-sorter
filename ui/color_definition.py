@@ -52,13 +52,21 @@ class SafeViewPainter(QtCore.QObject):
     def clear(self):
         sc = self.view.scene()
         if not sc:
+            self._items.clear()
             return
-        for it in self._items:
+        # 목록을 먼저 복사해두고, 내부 리스트는 즉시 비움(중복 remove 방지)
+        items = list(self._items)
+        self._items.clear()
+        for it in items:
             try:
-                sc.removeItem(it)
+                if it is None or sip.isdeleted(it):
+                    continue
+                # 아이템이 아직 어떤 scene에 붙어 있으면 그 scene에서 제거
+                owner = it.scene()
+                if owner is not None:
+                    owner.removeItem(it)
             except Exception:
                 pass
-        self._items.clear()
 
     def _has_any_pixmap(self) -> bool:
         sc = self.view.scene()
@@ -234,10 +242,11 @@ class PhotoViewer(QtWidgets.QDialog):
         right_view = self.pixel_view
 
         # 페인터 장착 (둘 다; 필요하면 한쪽만 써도 됨)
+        # auto_clear_on_next=False: 중앙에서 한 번만 처리하기 위해 자동 연결 끔
         if left_view:
-            self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=True)
+            self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=False)
         if right_view:
-            self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=True)
+            self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=False)
 
         # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
