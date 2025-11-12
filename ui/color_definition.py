@@ -175,10 +175,12 @@ class PhotoViewer(QtWidgets.QDialog):
         self.scene.clear()
         self.pixmap_item = self.scene.addPixmap(pixmap)
         self.pixmap_item.setAcceptedMouseButtons(QtCore.Qt.NoButton)
-        self.real_photo.fitInView(self.pixmap_item, QtCore.Qt.KeepAspectRatio)
 
         # 오른쪽: 분류 결과
         self.update_pixel_view()
+        
+        # 이미지 로드 후 줌 리셋 (원배율로 표시)
+        QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit)
 
     def next_photo(self):
         self.files = self._scan_files()
@@ -206,10 +208,41 @@ class PhotoViewer(QtWidgets.QDialog):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if self.files and self.pixmap_item:
-            self.real_photo.fitInView(self.pixmap_item, QtCore.Qt.KeepAspectRatio)
-        if self.pixelmap_item:
-            self.pixel_view.fitInView(self.pixelmap_item, QtCore.Qt.KeepAspectRatio)
+        # 리사이즈 시 줌 컨트롤러를 통해 리셋 (기준 배율 유지)
+        if self._has_any_pixmap():
+            QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit)
+
+    # ----------- Zoom Slots -----------
+    def _on_zoom_in(self):
+        try:
+            if not self._has_any_pixmap():
+                return
+            self.zoomer.zoom(+1)
+        except Exception as e:
+            print(f"[WARN] zoom-in 실패: {e}")
+
+    def _on_zoom_out(self):
+        try:
+            if not self._has_any_pixmap():
+                return
+            self.zoomer.zoom(-1)
+        except Exception as e:
+            print(f"[WARN] zoom-out 실패: {e}")
+
+    def reset_zoom_to_fit(self):
+        """다음 이미지로 넘어가거나 새 이미지를 표시한 직후 호출하면 원배율(기준배율)로 복귀."""
+        try:
+            self.zoomer.reset_zoom_to_fit()
+        except Exception as e:
+            print(f"[WARN] reset_zoom_to_fit 실패: {e}")
+
+    def _has_any_pixmap(self) -> bool:
+        """두 뷰 중 하나라도 PixmapItem이 있으면 True."""
+        for v in self._views:
+            sc = v.scene()
+            if sc and any(isinstance(it, QGraphicsPixmapItem) for it in sc.items()):
+                return True
+        return False
 
     # -------------------------------
     def get_selected_label(self):
