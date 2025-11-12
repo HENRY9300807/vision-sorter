@@ -710,55 +710,52 @@ class LinkedDualPainter(QtCore.QObject):
         except Exception as e:
             print("[WARN] _save_color_defs:", e)
 
-        L = _labels_no0(self.ovL.mask_idx)
-        R = _labels_no0(self.ovR.mask_idx)
+        L = _labels_no0(self.ovL.mask_idx if self.ovL is not None else None)
+        R = _labels_no0(self.ovR.mask_idx if self.ovR is not None else None)
         print(f"[CHK] L={sorted(L)}  R={sorted(R)}")
 
         if not L and not R:
             print("[SKIP] both sides have no labels -> skip masks only")
-            if hasattr(self.ovR, "clear_hint"):
+            if self.ovR is not None:
                 self.ovR.clear_hint()
-            if hasattr(self, "_update_live"):
-                self._update_live()
+            self._update_live()
             return
 
         # (선택) 저장 상한 체크가 있으면 유지
         if hasattr(self, "saver") and not self.saver.can_save():
             print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
-            if hasattr(self, "_update_live"):
-                self._update_live()
+            self._update_live()
             return
 
         out = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
         os.makedirs(out, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        if L:
+        if L and self.ovL is not None:
             cv2.imwrite(os.path.join(out, f"left_mask_{ts}.png"),  self.ovL.mask_idx)
             np.save(os.path.join(out, f"left_mask_{ts}.npy"),   self.ovL.mask_idx)
-        if R:
+        if R and self.ovR is not None:
             cv2.imwrite(os.path.join(out, f"right_mask_{ts}.png"), self.ovR.mask_idx)
             np.save(os.path.join(out, f"right_mask_{ts}.npy"),  self.ovR.mask_idx)
 
         print(f"[SAVED] masks -> {out} ({'L' if L else ''}{'R' if R else ''})")
 
         # 후처리
-        try:
-            from PyQt5 import sip
-            aliveR = (self.ovR is not None) and not sip.isdeleted(self.ovR.view)
-        except Exception:
-            aliveR = True
-        if aliveR and hasattr(self.ovR, "recolor_from_labelmap"):
-            self.ovR.recolor_from_labelmap(LABEL_COLORS)
-        if aliveR and hasattr(self.ovR, "clear_hint"):
-            self.ovR.clear_hint()
+        if self.ovR is not None:
+            try:
+                from PyQt5 import sip
+                aliveR = not sip.isdeleted(self.ovR.view)
+            except Exception:
+                aliveR = True
+            if aliveR and hasattr(self.ovR, "recolor_from_labelmap"):
+                self.ovR.recolor_from_labelmap(LABEL_COLORS)
+            if aliveR:
+                self.ovR.clear_hint()
 
         if hasattr(self, "saver"):
             self.saver.on_saved()
-            if hasattr(self, "_update_progress_label"):
-                self._update_progress_label()
-        if hasattr(self, "_update_live"):
-            self._update_live()
+            self._update_progress_label()
+        self._update_live()
 
 
 class SynchronizedZoomer:
