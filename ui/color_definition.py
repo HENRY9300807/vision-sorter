@@ -18,6 +18,43 @@ from package.operation import (
 
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
 
+# 라벨 색 (오른쪽 픽셀 뷰 재색칠에 사용)
+LABEL_COLORS = {
+    1: QtGui.QColor(0, 200, 0, 160),      # product = 초록
+    2: QtGui.QColor(0, 140, 255, 160),    # background = 파랑
+    3: QtGui.QColor(255, 60, 60, 160),    # defect = 빨강
+}
+
+# 같은 RGB값 하이라이트 색
+MATCH_HINT_COLOR = QtGui.QColor(255, 255, 0, 120)  # 노랑
+
+# 동일 기준 허용 오차 (픽셀화에서는 0으로도 충분, 실사쪽은 0~3 정도 권장)
+MATCH_TOL = 0
+
+
+def _largest_pixmap_item(scene: QtWidgets.QGraphicsScene):
+    """씬에서 가장 큰 PixmapItem을 찾아 반환 (안전하게)."""
+    if scene is None:
+        return None
+    base = None
+    base_area = -1
+    for it in scene.items():
+        if not isinstance(it, QGraphicsPixmapItem):
+            continue
+        if sip.isdeleted(it):
+            continue
+        try:
+            pm = it.pixmap()
+            if pm.isNull():
+                continue
+            area = pm.width() * pm.height()
+            if area > base_area:
+                base = it
+                base_area = area
+        except Exception:
+            continue
+    return base
+
 
 class OverlayMask:
     """
