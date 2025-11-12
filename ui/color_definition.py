@@ -485,33 +485,20 @@ class LinkedDualPainter(QtCore.QObject):
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
-        # ✅ 안전 가드: 뷰가 삭제되었는지 확인
-        try:
-            if _is_deleted(self.left) or _is_deleted(self.right):
-                return False
-        except Exception:
-            return False
-        
+        # 좌/우 뷰 중 어디서 이벤트가 왔는지 판별
         if self._in_reset:
             return False
-        try:
-            is_left = (obj is self.left.viewport())
-            is_right = (obj is self.right.viewport())
-            if not (is_left or is_right):
-                return False
-
-            if ev.type() == QEvent.MouseButtonPress and ev.buttons() & Qt.LeftButton:
-                self._painting = True
-                self._paint_pair("left" if is_left else "right", ev.pos())
+        
+        # 디버그: 이벤트 확인
+        # print("[EV]", "left" if obj is self.left.viewport() else "right" if obj is self.right.viewport() else "other")
+        
+        if ev.type() in (QEvent.MouseButtonPress, QEvent.MouseMove) and ev.buttons() & Qt.LeftButton:
+            if obj is self.left.viewport():
+                self._paint_one(self.left, self.ovL, ev.pos())
                 return True
-            elif ev.type() == QEvent.MouseMove and self._painting and ev.buttons() & Qt.LeftButton:
-                self._paint_pair("left" if is_left else "right", ev.pos())
+            elif obj is self.right.viewport():
+                self._paint_one(self.right, self.ovR, ev.pos())
                 return True
-            elif ev.type() == QEvent.MouseButtonRelease and ev.button() == Qt.LeftButton:
-                self._painting = False
-                return True
-        except Exception as e:
-            print(f"[WARN] paint error: {e}")
         return False
 
     # ---------- next/clear/save ----------
