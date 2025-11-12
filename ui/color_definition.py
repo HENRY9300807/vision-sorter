@@ -221,6 +221,11 @@ class OverlayMask:
         if not (0 <= local_pt.x() < w and 0 <= local_pt.y() < h):
             return
 
+        # ✅ 라벨 ID 검증 (디버그용)
+        if label_idx <= 0:
+            print(f"[WARN] paint_disk: invalid label_idx={label_idx}, must be > 0")
+            return
+
         # 라벨 오버레이
         try:
             p = QtGui.QPainter(self.qimage)
@@ -234,8 +239,12 @@ class OverlayMask:
         except Exception:
             return
 
-        # 라벨맵
-        cv2.circle(self.mask_idx, (local_pt.x(), local_pt.y()), int(radius), int(label_idx), thickness=-1)
+        # ✅ 라벨맵 기록 (반드시 1/2/3 등 >0 이 들어가야 함)
+        cv2.circle(self.mask_idx,
+                   (int(local_pt.x()), int(local_pt.y())),
+                   int(radius),
+                   int(label_idx),        # ← 반드시 1/2/3 등 >0 이 들어가야 함
+                   thickness=-1)
 
     def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
         """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
