@@ -65,7 +65,7 @@ class SafeViewPainter(QtCore.QObject):
             return False
         # 장면의 첫 번째 PixmapItem 유무만 확인 (없으면 그리지 않음)
         for it in sc.items():
-            if isinstance(it, QtWidgets.QGraphicsPixmapItem):
+            if isinstance(it, QGraphicsPixmapItem):
                 return True
         return False
 
