@@ -654,10 +654,15 @@ class LinkedDualPainter(QtCore.QObject):
             return {}
 
         # 1) 좌측 마스크 우선
-        maskL = self.ovL.mask_idx
+        maskL = None
+        if self.ovL is not None:
+            maskL = self.ovL.mask_idx
+        
         if maskL is None or maskL.size == 0:
             # 2) 폴백: 우측 마스크를 좌측 크기에 맞춤
-            maskR = self.ovR.mask_idx
+            maskR = None
+            if self.ovR is not None:
+                maskR = self.ovR.mask_idx
             if maskR is None or maskR.size == 0:
                 return {}
             h, w = rgb.shape[:2]
