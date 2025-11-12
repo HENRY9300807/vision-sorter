@@ -246,16 +246,23 @@ class OverlayMask:
             p.end()
             self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
-        except Exception:
-            return
+        except Exception as e:
+            print(f"[WARN] paint_disk overlay error: {e}")
+            # 오버레이 실패해도 마스크는 기록해야 함
 
         # 2) ✅ 마스크 배열(수치) 기록 — 반드시 1/2/3 등 양수 라벨
-        cx, cy = int(local_pt.x()), int(local_pt.y())
-        cv2.circle(self.mask_idx, (cx, cy), int(radius), int(label_idx), thickness=-1)
+        try:
+            cx, cy = int(local_pt.x()), int(local_pt.y())
+            cv2.circle(self.mask_idx, (cx, cy), int(radius), int(label_idx), thickness=-1)
+        except Exception as e:
+            print(f"[WARN] paint_disk mask error: {e}")
+            return
         
-        # 디버그(선택적 - 필요시 주석 해제)
-        # vals, cnt = np.unique(self.mask_idx, return_counts=True)
-        # print(f"[PAINT] labels={vals.tolist()} counts={cnt.tolist()}")
+        # 디버그: 실제 라벨 기록 확인 (일시적으로 활성화)
+        vals, cnt = np.unique(self.mask_idx, return_counts=True)
+        non_zero = [v for v in vals if v > 0]
+        if non_zero:
+            print(f"[PAINT] mask labels={non_zero} (total unique={len(vals)})")
 
     def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
         """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
@@ -455,6 +462,13 @@ class LinkedDualPainter(QtCore.QObject):
         if label_idx <= 0:
             print(f"[WARN] _paint_pair: invalid label_idx={label_idx} from label_selector")
             return
+        
+        # 디버그: 페인트 시작 로그 (처음 몇 번만)
+        if not hasattr(self, '_paint_debug_count'):
+            self._paint_debug_count = 0
+        self._paint_debug_count += 1
+        if self._paint_debug_count <= 3:
+            print(f"[PAINT_PAIR] side={side}, label_idx={label_idx}, radius={self.radius}")
 
         if side == "left":
             # 좌측 라벨 페인트 + 우측 동기
