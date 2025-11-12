@@ -670,25 +670,31 @@ class LinkedDualPainter(QtCore.QObject):
             print("[WARN] _save_color_defs:", e)
 
         # --- 좌/우 라벨 집합(0=미지정 제거) ---
-        labelsL, labelsR = set(), set()
-        if self.ovL.mask_idx is not None:
-            uniqL = _np.unique(self.ovL.mask_idx); labelsL = set(uniqL.tolist()); labelsL.discard(0)
-        if self.ovR.mask_idx is not None:
-            uniqR = _np.unique(self.ovR.mask_idx); labelsR = set(uniqR.tolist()); labelsR.discard(0)
+        def nz_labels(m):
+            if m is None:
+                return set()
+            s = set(_np.unique(m).tolist())
+            s.discard(0)
+            return s
 
-        print(f"[CHK] L={sorted(labelsL)}  R={sorted(labelsR)}")
+        L = nz_labels(self.ovL.mask_idx)
+        R = nz_labels(self.ovR.mask_idx)
+        print(f"[CHK] L={sorted(L)}  R={sorted(R)}")
 
         # ✅ 좌/우 모두 무라벨일 때만 스킵
-        if not labelsL and not labelsR:
-            print("[SKIP] both sides have no labels -> skip masks only")
-            if hasattr(self.ovR, "clear_hint"): self.ovR.clear_hint()
-            if hasattr(self, "_update_live"): self._update_live()
+        if not L and not R:
+            print("[SKIP] both sides have no labels -> skip")
+            if hasattr(self.ovR, "clear_hint"):
+                self.ovR.clear_hint()
+            if hasattr(self, "_update_live"):
+                self._update_live()
             return
 
         # (선택) 저장 상한 체크가 있으면 유지
         if hasattr(self, "saver") and not self.saver.can_save():
             print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
-            if hasattr(self, "_update_live"): self._update_live()
+            if hasattr(self, "_update_live"):
+                self._update_live()
             return
 
         # --- 라벨 있는 쪽만 저장 ---
@@ -696,17 +702,14 @@ class LinkedDualPainter(QtCore.QObject):
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        saved_sides = []
-        if labelsL:
+        if L:
             cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"),  self.ovL.mask_idx)
-            _np.save   (os.path.join(out_dir, f"left_mask_{ts}.npy"),  self.ovL.mask_idx)
-            saved_sides.append("L")
-        if labelsR:
+            _np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"),  self.ovL.mask_idx)
+        if R:
             cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-            _np.save   (os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
-            saved_sides.append("R")
+            _np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
 
-        print(f"[SAVED] masks -> {out_dir} ({'&'.join(saved_sides)})")
+        print(f"[SAVED] masks -> {out_dir} ({'L' if L else ''}{'R' if R else ''})")
 
         # 후처리
         try:
