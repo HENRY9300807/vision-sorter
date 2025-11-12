@@ -609,36 +609,21 @@ class LinkedDualPainter(QtCore.QObject):
 
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
-        # 0) 마스크 유효성
-        if self.ovL.mask_idx is None and self.ovR.mask_idx is None:
-            print("[INFO] 저장할 마스크가 없습니다.")
+        # 0) 오른쪽 마스크 유효성
+        if self.ovR.mask_idx is None:
+            print("[SKIP] right mask is None -> skip")
             self._update_live()
             return
 
         # 1) ✅ 오른쪽(픽셀화) 라벨만으로 저장 여부 판정 (0=미지정 제외)
-        if self.ovR.mask_idx is not None:
-            uniqR = np.unique(self.ovR.mask_idx)
-            labelsR = set(uniqR.tolist())
-            labelsR.discard(0)  # 0 제거
-            print(f"[CHK] unique(R)={uniqR}, labels(no0)={labelsR}")
-        else:
-            # 오른쪽이 없을 때만 좌/우 합집합 사용(예외적 폴백)
-            labelsR = set()
-            for m in (self.ovL.mask_idx, self.ovR.mask_idx):
-                if m is None:
-                    continue
-                labelsR |= set(np.unique(m).tolist())
-            labelsR.discard(0)  # 0 제거
-            print(f"[CHK] right mask is None, using fallback, labels(no0)={labelsR}")
+        uniqR = np.unique(self.ovR.mask_idx)
+        labelsR = set(uniqR.tolist())
+        labelsR.discard(0)  # 0 제거
+        print(f"[CHK] unique(R)={uniqR}, labels(no0)={labelsR}")
 
         # ✅ 변경: 라벨이 '전혀 없을 때'만 스킵. background-only는 저장 허용.
         if not labelsR:
             print(f"[SKIP] right has no labels -> skip. labelsR={labelsR}")
-            # 스킵 직전 (오른쪽 무라벨): 왼쪽에 라벨이 있으면 RGB만이라도 저장
-            if self.ovL.mask_idx is not None and np.any(self.ovL.mask_idx != 0):
-                self._save_color_defs()   # ✅ 오른쪽이 비어도 왼쪽 라벨로 RGB 저장
-            # 하이라이트/라이브 상태는 정리/유지
-            self.ovR.clear_hint()
             self._update_live()
             return
 
@@ -653,12 +638,14 @@ class LinkedDualPainter(QtCore.QObject):
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # 왼쪽 마스크도 저장 (있으면)
         if self.ovL.mask_idx is not None:
             cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
             np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
-        if self.ovR.mask_idx is not None:
-            cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-            np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+        
+        # 오른쪽 마스크 저장
+        cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
+        np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
 
         print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
 
@@ -666,8 +653,27 @@ class LinkedDualPainter(QtCore.QObject):
         self.ovR.recolor_from_labelmap(LABEL_COLORS)
         self.ovR.clear_hint()
 
-        # --- 정상 저장(마스크/NPY) 후 ---
-        self._save_color_defs()   # ✅ 라벨별 평균 RGB를 color_defs.json에 반영
+        # --- RGB 저장(오른쪽 기준) ---
+        rpmi = _largest_pixmap_item(self.right.scene())
+        if rpmi and not rpmi.pixmap().isNull():
+            arr = self._qimage_to_rgb_array(rpmi.pixmap())  # (H,W,3)
+            defs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "color_defs.json")
+            try:
+                import json
+                with open(defs_path, "r", encoding="utf-8") as f:
+                    defs = json.load(f)
+            except Exception:
+                defs = {}
+
+            for lid, name in [(LABEL_PRODUCT, "product"), (LABEL_BACKGROUND, "background"), (LABEL_DEFECT, "defect")]:
+                m = (self.ovR.mask_idx == lid)
+                if m.any():
+                    rgb = arr[m].mean(axis=0).round(2).tolist()
+                    defs[name] = {"rgb": rgb, "ts": ts}
+
+            with open(defs_path, "w", encoding="utf-8") as f:
+                json.dump(defs, f, ensure_ascii=False, indent=2)
+            print("[SAVED] color_defs.json updated")
 
         # 카운터 증가 + 진행도 갱신 + 실시간 상태 갱신
         self.saver.on_saved()
