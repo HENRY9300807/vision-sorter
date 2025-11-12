@@ -16,119 +16,88 @@ from package.operation import (
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
 
 
-class _Overlay:
-    """각 QGraphicsView 위에 반투명 마스크(QImage)를 얹어 그림."""
-    def __init__(self, view: QGraphicsView):
+class SafeViewPainter(QtCore.QObject):
+    """
+    QGraphicsView.viewport()에 이벤트 필터를 달아 좌클릭 드래그로 점(브러시)을 찍는다.
+    - scene()/pixmap 유무 점검 → 없으면 조용히 무시(튕김 방지)
+    - 확대/축소/스크롤과 호환(mapToScene 사용)
+    """
+    def __init__(self, root: QtWidgets.QWidget, view: QGraphicsView,
+                 color_selector, radius: int = 8, auto_clear_on_next: bool = True):
+        super().__init__(root)
         self.view = view
+        self.color_selector = color_selector
+        self.radius = max(1, int(radius))
+        self._items = []
+
+        # 씬 보장
         if self.view.scene() is None:
             self.view.setScene(QGraphicsScene(self.view))
-        self.overlay_item = QGraphicsPixmapItem()
-        self.overlay_item.setZValue(1000)  # 맨 위
-        self.view.scene().addItem(self.overlay_item)
-        self.img = None  # QImage(ARGB32)
-        self._last_base_rect = None
 
-    def ensure_size_from_base(self) -> bool:
-        """씬에 있는 가장 큰 PixmapItem을 찾아 그 크기로 오버레이 초기화."""
-        sc = self.view.scene()
-        base_items = [it for it in sc.items() if isinstance(it, QGraphicsPixmapItem) and it is not self.overlay_item]
-        if not base_items:
-            return False
-        # 가장 큰 영역을 가진 픽스맵을 기준으로
-        base = max(base_items, key=lambda it: it.pixmap().width() * it.pixmap().height())
-        pm = base.pixmap()
-        if pm.isNull():
-            return False
-        if (self.img is None) or (self.img.width() != pm.width()) or (self.img.height() != pm.height()):
-            self.img = QtGui.QImage(pm.width(), pm.height(), QtGui.QImage.Format_ARGB32_Premultiplied)
-            self.img.fill(Qt.transparent)
-            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.img))
-        self._last_base_rect = base.sceneBoundingRect()
-        return True
+        # 품질/기준점 설정
+        self.view.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
+        self.view.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
+        self.view.setResizeAnchor(QGraphicsView.AnchorViewCenter)
 
-    def scene_to_local(self, scene_pos: QPointF) -> QtCore.QPoint:
-        """씬 좌표 → 오버레이 로컬 픽셀 좌표로 변환."""
-        if self._last_base_rect is None:
-            return QtCore.QPoint(-1, -1)
-        x = int(scene_pos.x() - self._last_base_rect.left())
-        y = int(scene_pos.y() - self._last_base_rect.top())
-        return QtCore.QPoint(x, y)
+        # viewport에 필터 장착(중요)
+        self.view.viewport().installEventFilter(self)
 
-    def paint_dot(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor):
-        if self.img is None:
-            return
-        if not (0 <= local_pt.x() < self.img.width() and 0 <= local_pt.y() < self.img.height()):
-            return
-        p = QtGui.QPainter(self.img)
-        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QtGui.QBrush(color))
-        p.drawEllipse(local_pt, radius, radius)
-        p.end()
-        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.img))
+        # 다음 이미지로 넘어갈 때 자동 초기화(옵션)
+        if auto_clear_on_next:
+            nb = root.findChild(QtWidgets.QPushButton, "nextButton")
+            if nb:
+                nb.clicked.connect(self.clear)
 
     def clear(self):
-        if self.img is not None:
-            self.img.fill(Qt.transparent)
-            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.img))
-
-
-class DualPainter(QtCore.QObject):
-    """
-    두 개 QGraphicsView(real_photo, pixel_view)에서 동일 로직으로 칠하기.
-    - 좌클릭 드래그로 브러시 페인트
-    - 뷰 확대/축소와 공존 (페인트 중에는 팬 비활성)
-    """
-    def __init__(self, left_view: QGraphicsView, right_view: QGraphicsView,
-                 color_getter, radius: int = 8, parent=None):
-        super().__init__(parent)
-        self.left = _Overlay(left_view)
-        self.right = _Overlay(right_view)
-        self.color_getter = color_getter
-        self.radius = radius
-        self._painting = False
-        self._saved_dragmode = {
-            left_view: left_view.dragMode(),
-            right_view: right_view.dragMode()
-        }
-
-        # 이벤트 필터 장착
-        left_view.installEventFilter(self)
-        right_view.installEventFilter(self)
-
-    def eventFilter(self, obj, ev):
-        if isinstance(obj, QGraphicsView):
-            if ev.type() == QtCore.QEvent.MouseButtonPress and ev.button() == Qt.LeftButton:
-                self._painting = True
-                obj.setDragMode(QGraphicsView.NoDrag)  # 그리는 동안 팬 잠시 off
-                self._paint_once(obj, ev.pos())
-                return True
-            if ev.type() == QtCore.QEvent.MouseMove and self._painting:
-                self._paint_once(obj, ev.pos())
-                return True
-            if ev.type() == QtCore.QEvent.MouseButtonRelease and ev.button() == Qt.LeftButton:
-                self._painting = False
-                # 원래 드래그 모드 복원(보통 ScrollHandDrag)
-                orig = self._saved_dragmode.get(obj, QGraphicsView.ScrollHandDrag)
-                obj.setDragMode(orig)
-                return True
-        return super().eventFilter(obj, ev)
-
-    def _paint_once(self, view: QGraphicsView, view_pos: QtCore.QPoint):
-        color = self.color_getter()  # UI 라디오버튼 상태 기반 색상
-        overlay = self.left if view is self.left.view else self.right
-        if not overlay.ensure_size_from_base():
+        sc = self.view.scene()
+        if not sc:
             return
-        scene_pos = view.mapToScene(view_pos)
-        local_pt = overlay.scene_to_local(scene_pos)
-        overlay.paint_dot(local_pt, self.radius, color)
+        for it in self._items:
+            try:
+                sc.removeItem(it)
+            except Exception:
+                pass
+        self._items.clear()
 
-    def clear_both(self):
-        self.left.clear()
-        self.right.clear()
+    def _has_any_pixmap(self) -> bool:
+        sc = self.view.scene()
+        if not sc:
+            return False
+        # 장면의 첫 번째 PixmapItem 유무만 확인 (없으면 그리지 않음)
+        for it in sc.items():
+            if isinstance(it, QtWidgets.QGraphicsPixmapItem):
+                return True
+        return False
 
-    def set_radius(self, r: int):
-        self.radius = max(1, int(r))
+    def _draw_dot(self, pos):
+        if not self._has_any_pixmap():
+            return
+        scene_pt = self.view.mapToScene(pos)
+        r = self.radius
+        color = self.color_selector()
+        pen = QtGui.QPen(color)
+        pen.setWidth(0)
+        brush = QtGui.QBrush(color)
+        item = self.view.scene().addEllipse(scene_pt.x()-r, scene_pt.y()-r, 2*r, 2*r, pen, brush)
+        item.setZValue(10)
+        self._items.append(item)
+
+    def eventFilter(self, obj, event):
+        if obj is not self.view.viewport():
+            return False
+        try:
+            if event.type() == QEvent.MouseButtonPress and event.buttons() & Qt.LeftButton:
+                self._draw_dot(event.pos())
+                return True
+            elif event.type() == QEvent.MouseMove and event.buttons() & Qt.LeftButton:
+                self._draw_dot(event.pos())
+                return True
+            elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                return True
+        except Exception as e:
+            # 콘솔에만 경고 출력(앱 종료 방지)
+            print(f"[WARN] paint error: {e}")
+        return False
 
 
 class SynchronizedZoomer:
