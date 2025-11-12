@@ -609,16 +609,16 @@ class LinkedDualPainter(QtCore.QObject):
 
     def _update_progress_label(self):
         """진행도 라벨 갱신."""
-        if self._progress_label:
+        if hasattr(self, "_progress_label") and self._progress_label:
             self._progress_label.setText(f"{self.saver.count}/{self.saver.max}")
 
     def _label_stats(self) -> dict:
         """좌/우 마스크의 라벨 통계 반환."""
         stats = {}
-        for m in (self.ovL.mask_idx, self.ovR.mask_idx):
-            if m is None:
+        for ov in (self.ovL, self.ovR):
+            if ov is None or ov.mask_idx is None:
                 continue
-            uniq, cnt = np.unique(m, return_counts=True)
+            uniq, cnt = np.unique(ov.mask_idx, return_counts=True)
             for u, c in zip(uniq.tolist(), cnt.tolist()):
                 stats[u] = stats.get(u, 0) + c
         return stats
