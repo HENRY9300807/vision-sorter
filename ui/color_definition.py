@@ -140,26 +140,36 @@ class OverlayMask:
 
     def paint_dot(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
         """보이기용 qimage와 정수 마스크를 동시에 갱신."""
+        # 그리기 직전에 항상 바인딩 재확인(씬이 방금 바뀐 상황 대비)
+        self._ensure_binding()
         if self.qimage is None or self.mask_idx is None:
             return
         h, w = self.mask_idx.shape
         if not (0 <= local_pt.x() < w and 0 <= local_pt.y() < h):
             return
 
-        # 1) 시각용(반투명)
-        painter = QtGui.QPainter(self.qimage)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QtGui.QBrush(color))
-        painter.drawEllipse(local_pt, radius, radius)
-        painter.end()
-        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        # 1) 시각용
+        try:
+            painter = QtGui.QPainter(self.qimage)
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QtGui.QBrush(color))
+            painter.drawEllipse(local_pt, radius, radius)
+            painter.end()
+            # overlay_item 유효성 보장 후 갱신
+            self._ensure_binding()
+            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        except Exception:
+            # 삭제 타이밍에 걸리면 다음 페인트에서 자동 복구됨
+            return
 
         # 2) 라벨맵(정수)
         cv2.circle(self.mask_idx, (local_pt.x(), local_pt.y()), int(radius), int(label_idx), thickness=-1)
 
     def clear(self):
-        if self.qimage is not None:
+        # 씬/오버레이 상태 보장 후 초기화
+        self._ensure_binding()
+        if self.qimage is not None and not self.qimage.isNull():
             self.qimage.fill(Qt.transparent)
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
         if self.mask_idx is not None:
