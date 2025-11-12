@@ -454,6 +454,8 @@ class LinkedDualPainter(QtCore.QObject):
         self.ovR.ensure_from_base()
         self.ovL.clear_all()
         self.ovR.clear_all()
+        # 초기화 상태를 즉시 반영
+        self._update_live()
         self._in_reset = False
 
     def clear_both(self):
