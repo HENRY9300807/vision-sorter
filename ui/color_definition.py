@@ -228,13 +228,15 @@ class PhotoViewer(QtWidgets.QDialog):
                 return self._label_colors["background"]
             return self._label_colors["product"]
 
-        # 두 QGraphicsView 객체 찾기(오브젝트명은 Qt Designer의 Object Inspector 기준)
-        left_view = self.findChild(QGraphicsView, "real_photo")
-        right_view = self.findChild(QGraphicsView, "pixel_view")
+        # 두 QGraphicsView 객체 (이미 uic.loadUi로 로드됨)
+        left_view = self.real_photo
+        right_view = self.pixel_view
 
         # 페인터 장착 (둘 다; 필요하면 한쪽만 써도 됨)
-        self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=True)
-        self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=True)
+        if left_view:
+            self.left_painter = SafeViewPainter(self, left_view, _current_color, radius=8, auto_clear_on_next=True)
+        if right_view:
+            self.right_painter = SafeViewPainter(self, right_view, _current_color, radius=8, auto_clear_on_next=True)
 
         # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
