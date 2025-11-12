@@ -174,23 +174,29 @@ class OverlayMask:
         if pm.isNull():
             return False
 
+        w, h = pm.width(), pm.height()
+        
+        # 마스크 배열 준비 (uint8, 0=미지정) - 항상 보장
+        if self.mask_idx is None or self.mask_idx.shape != (h, w):
+            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
+
+        # 오버레이 QImage 준비
         need_new = (
             self.qimage is None or
-            self.qimage.width() != pm.width() or
-            self.qimage.height() != pm.height()
+            self.qimage.width() != w or
+            self.qimage.height() != h
         )
         if need_new:
-            w, h = pm.width(), pm.height()
             # 라벨 QImage
             self.qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
             self.qimage.fill(Qt.transparent)
+            self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
             # 힌트 QImage
             self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
             self.hint_qimage.fill(Qt.transparent)
+            self._ensure_binding()
             self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
-            # 라벨맵
-            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
 
         # 좌표 변환용 SceneRect
         try:
