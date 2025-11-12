@@ -518,9 +518,9 @@ class LinkedDualPainter(QtCore.QObject):
         self._in_reset = False
 
     def clear_both(self):
-        """양쪽 오버레이 모두 초기화"""
-        self.ovL.clear_all()
-        self.ovR.clear_all()
+        """양쪽 오버레이만 초기화(마스크는 유지)"""
+        self.ovL.clear_hint()
+        self.ovR.clear_hint()
 
     def shutdown(self):
         """종료 시 이벤트 필터 및 타이머 정리"""
