@@ -71,15 +71,23 @@ class OverlayMask:
         sc = self.view.scene()
         if not sc:
             return None
-        # overlay_item 외의 가장 큰 PixmapItem을 '기저'로 간주
         base = None
         area = -1
         for it in sc.items():
-            if isinstance(it, QGraphicsPixmapItem) and it is not self.overlay_item:
-                pm = it.pixmap()
-                a = pm.width() * pm.height()
-                if a > area and not pm.isNull():
-                    base, area = it, a
+            try:
+                if sip.isdeleted(it):
+                    continue
+                # overlay 자기 자신은 제외
+                if isinstance(it, QGraphicsPixmapItem) and it is not self.overlay_item:
+                    pm = it.pixmap()
+                    if pm.isNull():
+                        continue
+                    a = pm.width() * pm.height()
+                    if a > area:
+                        base, area = it, a
+            except Exception:
+                # 삭제 타이밍에 걸리면 그냥 스킵
+                continue
         return base
 
     def ensure_from_base(self) -> bool:
