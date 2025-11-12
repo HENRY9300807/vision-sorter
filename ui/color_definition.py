@@ -466,27 +466,69 @@ class LinkedDualPainter(QtCore.QObject):
         self.ovL.clear_all()
         self.ovR.clear_all()
 
+    def _update_progress_label(self):
+        """진행도 라벨 갱신."""
+        if self._progress_label:
+            self._progress_label.setText(f"{self.saver.count}/{self.saver.max}")
+
+    def _label_stats(self) -> dict:
+        """좌/우 마스크의 라벨 통계 반환."""
+        stats = {}
+        for m in (self.ovL.mask_idx, self.ovR.mask_idx):
+            if m is None:
+                continue
+            uniq, cnt = np.unique(m, return_counts=True)
+            for u, c in zip(uniq.tolist(), cnt.tolist()):
+                stats[u] = stats.get(u, 0) + c
+        return stats
+
+    def _is_background_only(self, stats: dict) -> bool:
+        """배경만 있는지 확인."""
+        if not stats:
+            return True
+        present = set(stats.keys())
+        return present.issubset({0, LABEL_BACKGROUND})
+
+    def _update_live(self):
+        """라벨맵 기반 실시간 선별 신호/정보 파일 갱신(자바에서 폴링)."""
+        # 우측(픽셀 뷰) 기준으로 결함 최대 면적 계산
+        mask = self.ovR.mask_idx if self.ovR.mask_idx is not None else self.ovL.mask_idx
+        if mask is None:
+            self.exporter.publish(area_cm2=0.0, trigger=False, stats={}, extra={"saved_count": self.saver.count})
+            return
+        
+        px = largest_component_pixels(mask, LABEL_DEFECT)
+        area = pixels_to_cm2(px, self.cm_per_pixel)
+        trigger = (area >= self.defect_min_area_cm2)
+        stats = self._label_stats()
+        self.exporter.publish(area_cm2=area, trigger=trigger, stats=stats,
+                              extra={"saved_count": self.saver.count})
+
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
         # 0) 마스크 유효성
         if self.ovL.mask_idx is None and self.ovR.mask_idx is None:
             print("[INFO] 저장할 마스크가 없습니다.")
-            QMessageBox.information(self.root, "저장 건너뜀", "라벨이 비어 있어 저장하지 않습니다.")
+            self._update_live()
             return
 
-        # 1) 좌/우 라벨 합집합 확인 (0은 미지정이므로 제외)
-        labelsL = set(np.unique(self.ovL.mask_idx).tolist()) if self.ovL.mask_idx is not None else {0}
-        labelsR = set(np.unique(self.ovR.mask_idx).tolist()) if self.ovR.mask_idx is not None else {0}
-        labels = (labelsL | labelsR) - {0}
-
-        # 2) 배경만 존재하거나(= {2}) 아예 비어 있으면 저장 skip
-        if (not labels) or (labels <= {LABEL_BACKGROUND}):
-            print("[SKIP] 배경만 라벨링된 이미지이므로 저장을 건너뜁니다.")
-            QMessageBox.information(self.root, "저장 건너뜀", "배경만 지정되어 저장하지 않습니다.")
-            # 하이라이트는 정리해 주는 편이 깔끔
-            self.ovR.clear_hint()
+        stats = self._label_stats()
+        
+        # 1) 배경만 존재하면 저장 skip
+        if self._is_background_only(stats):
+            print(f"[SKIP] 배경만 → 저장 생략. stats={stats}")
+            QMessageBox.information(self.root, "저장 스킵", "배경만 지정되어 저장하지 않습니다.")
+            self._update_live()
             return
 
+        # 2) 저장 상한 도달 시 저장 생략하되 선별은 계속
+        if not self.saver.can_save():
+            print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
+            QMessageBox.information(self.root, "저장 한도", "유효 저장 100장이 완료되었습니다. 선별은 계속됩니다.")
+            self._update_live()
+            return
+
+        # --- 저장 실행 ---
         out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -500,10 +542,14 @@ class LinkedDualPainter(QtCore.QObject):
 
         print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
 
-        # 오른쪽을 라벨 색으로 "바로" 재색칠(기능 복원)
+        # 우측 픽셀 뷰 재색칠(클래스 컬러)
         self.ovR.recolor_from_labelmap(LABEL_COLORS)
-        # 하이라이트는 저장 후 지워주는 편이 깔끔
         self.ovR.clear_hint()
+
+        # 카운터 증가 + 진행도 갱신 + 실시간 상태 갱신
+        self.saver.on_saved()
+        self._update_progress_label()
+        self._update_live()
 
 
 class SynchronizedZoomer:
