@@ -706,8 +706,12 @@ class LinkedDualPainter(QtCore.QObject):
 
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
-        import numpy as _np
-        print("[UI] save clicked")
+        def _labels_no0(mask) -> set:
+            if mask is None:
+                return set()
+            s = set(np.unique(mask).tolist())
+            s.discard(0)
+            return s
 
         # RGB 정의는 항상 먼저 (좌/우 폴백 포함)
         try:
@@ -715,21 +719,13 @@ class LinkedDualPainter(QtCore.QObject):
         except Exception as e:
             print("[WARN] _save_color_defs:", e)
 
-        # --- 좌/우 라벨 집합(0=미지정 제거) ---
-        def nz_labels(m):
-            if m is None:
-                return set()
-            s = set(_np.unique(m).tolist())
-            s.discard(0)
-            return s
-
-        L = nz_labels(self.ovL.mask_idx)
-        R = nz_labels(self.ovR.mask_idx)
+        L = _labels_no0(self.ovL.mask_idx)
+        R = _labels_no0(self.ovR.mask_idx)
         print(f"[CHK] L={sorted(L)}  R={sorted(R)}")
 
-        # ✅ 좌/우 모두 무라벨일 때만 스킵
+        # ✅ 둘 다 무라벨이면만 스킵
         if not L and not R:
-            print("[SKIP] both sides have no labels -> skip")
+            print("[SKIP] both sides have no labels -> skip masks only")
             if hasattr(self.ovR, "clear_hint"):
                 self.ovR.clear_hint()
             if hasattr(self, "_update_live"):
@@ -750,10 +746,10 @@ class LinkedDualPainter(QtCore.QObject):
 
         if L:
             cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"),  self.ovL.mask_idx)
-            _np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"),  self.ovL.mask_idx)
+            np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"),   self.ovL.mask_idx)
         if R:
             cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-            _np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+            np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"),  self.ovR.mask_idx)
 
         print(f"[SAVED] masks -> {out_dir} ({'L' if L else ''}{'R' if R else ''})")
 
