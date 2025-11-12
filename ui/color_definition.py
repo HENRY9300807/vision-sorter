@@ -2,8 +2,9 @@ from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView, QGraphicsPixmapItem
 from PyQt5.QtGui import QTransform
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPointF
 import cv2
+import os
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
 from package.color_utils import add_color_def, save_defs, clear_defs
