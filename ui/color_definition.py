@@ -306,8 +306,11 @@ class PhotoViewer(QtWidgets.QDialog):
         self._show_message("폴더가 비어 있습니다")
         # 오른쪽도 초기화
         self.pixel_scene.clear()
-        # 오버레이 마스크도 초기화
-        self.painter.clear_both()
+        # 페인터 마크도 초기화
+        if hasattr(self, 'left_painter'):
+            self.left_painter.clear()
+        if hasattr(self, 'right_painter'):
+            self.right_painter.clear()
 
     def update_photos(self):
         new_files = self._scan_files()
@@ -351,17 +354,6 @@ class PhotoViewer(QtWidgets.QDialog):
             if sc and any(isinstance(it, QGraphicsPixmapItem) for it in sc.items()):
                 return True
         return False
-
-    def _wrap_wheel(self, base_wheel):
-        # Ctrl + 휠로 브러시 반경 조절 (기존 휠 줌은 그대로 두되, Ctrl일 때만 가로챔)
-        def handler(ev: QtGui.QWheelEvent):
-            if ev.modifiers() & Qt.ControlModifier:
-                delta = ev.angleDelta().y()
-                self.painter.set_radius(self.painter.radius + (2 if delta > 0 else -2))
-                ev.accept()
-            else:
-                base_wheel(ev)
-        return handler
 
     # -------------------------------
     def get_selected_label(self):
