@@ -335,6 +335,8 @@ class PhotoViewer(QtWidgets.QDialog):
         self._show_message("폴더가 비어 있습니다")
         # 오른쪽도 초기화
         self.pixel_scene.clear()
+        # 오버레이 마스크도 초기화
+        self.painter.clear_both()
 
     def update_photos(self):
         new_files = self._scan_files()
