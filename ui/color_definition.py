@@ -648,56 +648,71 @@ class LinkedDualPainter(QtCore.QObject):
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
         import numpy as _np
+        print("[UI] save clicked")
 
-        # --- 좌/우 라벨 집합(0=미지정은 제외) ---
-        labelsL = set()
-        labelsR = set()
+        # RGB 정의는 항상 먼저 (좌/우 폴백 포함)
+        try:
+            self._save_color_defs()
+        except Exception as e:
+            print(f"[WARN] _save_color_defs: {e}")
+
+        # --- 좌/우 라벨 집합(0=미지정 제거) ---
+        labelsL, labelsR = set(), set()
         if self.ovL.mask_idx is not None:
-            labelsL = set(_np.unique(self.ovL.mask_idx).tolist())
+            uniqL = _np.unique(self.ovL.mask_idx)
+            labelsL = set(uniqL.tolist())
             labelsL.discard(0)
         if self.ovR.mask_idx is not None:
-            labelsR = set(_np.unique(self.ovR.mask_idx).tolist())
+            uniqR = _np.unique(self.ovR.mask_idx)
+            labelsR = set(uniqR.tolist())
             labelsR.discard(0)
 
         print(f"[CHK] L={sorted(labelsL)}  R={sorted(labelsR)}")
 
         # ✅ 좌/우 모두 무라벨일 때만 스킵
         if not labelsL and not labelsR:
-            print("[SKIP] both sides have no labels -> skip")
+            print("[SKIP] both sides have no labels -> skip masks only")
+            if hasattr(self.ovR, "clear_hint"):
+                self.ovR.clear_hint()
             if hasattr(self, "_update_live"):
                 self._update_live()
             return
 
-        # (선택) 저장 한도 체크 유지
+        # (선택) 저장 상한 체크가 있으면 유지
         if hasattr(self, "saver") and not self.saver.can_save():
-            print("[HOLD] 저장 한도 도달 → 저장 없이 선별만 계속.")
+            print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
             if hasattr(self, "_update_live"):
                 self._update_live()
             return
 
-        # --- 저장 ---
+        # --- 라벨 있는 쪽만 저장 ---
         out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        if self.ovL.mask_idx is not None and labelsL:
+        saved_sides = []
+        if labelsL:
             cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
             _np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
-
-        if self.ovR.mask_idx is not None and labelsR:
+            saved_sides.append("L")
+        if labelsR:
             cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
             _np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+            saved_sides.append("R")
 
-        # 라벨 있는 쪽이 하나라도 있으면 color_defs 갱신
-        self._save_color_defs()
-
-        print(f"[SAVED] labels => L:{bool(labelsL)} R:{bool(labelsR)}")
+        print(f"[SAVED] masks -> {out_dir} ({'&'.join(saved_sides)})")
 
         # 후처리
-        if labelsR:
+        try:
+            from PyQt5 import sip
+            aliveR = (self.ovR is not None) and not sip.isdeleted(self.ovR.view)
+        except Exception:
+            aliveR = True
+        if aliveR and hasattr(self.ovR, "recolor_from_labelmap"):
             self.ovR.recolor_from_labelmap(LABEL_COLORS)
-        if hasattr(self.ovR, "clear_hint"):
+        if aliveR and hasattr(self.ovR, "clear_hint"):
             self.ovR.clear_hint()
+
         if hasattr(self, "saver"):
             self.saver.on_saved()
             if hasattr(self, "_update_progress_label"):
