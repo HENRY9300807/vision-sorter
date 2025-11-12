@@ -812,6 +812,10 @@ class PhotoViewer(QtWidgets.QDialog):
             self._show_message("폴더가 비어 있습니다")
 
         # === 라디오버튼(product/background/defect)에 따른 라벨 인덱스 & 표색 ===
+        # 기본 라디오 버튼 설정 (0이 기록되는 상황 방지)
+        if hasattr(self, "background"):
+            self.background.setChecked(True)
+        
         self._label_color = {
             1: QtGui.QColor(40, 190, 80, 170),   # product
             2: QtGui.QColor(60, 160, 255, 170),  # background
