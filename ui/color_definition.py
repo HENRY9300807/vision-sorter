@@ -176,8 +176,9 @@ class PhotoViewer(QtWidgets.QDialog):
         # 오른쪽: 분류 결과
         self.update_pixel_view()
         
-        # 이미지 로드 후 줌 리셋 (원배율로 표시)
-        QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit)
+        # 이미지 업데이트 후 줌 리셋 (원배율로 표시)
+        # nextButton 클릭 시 또는 초기 로드 시에만 리셋되도록 함
+        QtCore.QTimer.singleShot(10, self.reset_zoom_to_fit)
 
     def next_photo(self):
         self.files = self._scan_files()
