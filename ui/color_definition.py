@@ -365,6 +365,19 @@ class LinkedDualPainter(QtCore.QObject):
         arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 3)).copy()
         return arr
 
+    def _left_base_rgb(self) -> np.ndarray | None:
+        """왼쪽(실사) 베이스 픽스맵을 RGB 배열로 가져오기"""
+        item = _largest_pixmap_item(self.left.scene())
+        if not item:
+            return None
+        try:
+            pm = item.pixmap()
+        except Exception:
+            return None
+        if pm.isNull():
+            return None
+        return self._qimage_to_rgb_array(pm)
+
     def _right_base_rgb(self):
         """오른쪽 픽셀화 뷰의 베이스 이미지를 RGB ndarray로 가져오기"""
         rpmi = _largest_pixmap_item(self.right.scene())
