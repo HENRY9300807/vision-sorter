@@ -627,7 +627,12 @@ class LinkedDualPainter(QtCore.QObject):
     def _update_live(self):
         """라벨맵 기반 실시간 선별 신호/정보 파일 갱신(자바에서 폴링)."""
         # 우측(픽셀 뷰) 기준으로 결함 최대 면적 계산
-        mask = self.ovR.mask_idx if self.ovR.mask_idx is not None else self.ovL.mask_idx
+        mask = None
+        if self.ovR is not None and self.ovR.mask_idx is not None:
+            mask = self.ovR.mask_idx
+        elif self.ovL is not None and self.ovL.mask_idx is not None:
+            mask = self.ovL.mask_idx
+        
         if mask is None:
             self.exporter.publish(area_cm2=0.0, trigger=False, stats={}, extra={"saved_count": self.saver.count})
             return
