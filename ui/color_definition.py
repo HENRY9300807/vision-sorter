@@ -61,17 +61,26 @@ class OverlayMask:
     각 QGraphicsView 위에 반투명 오버레이(QImage) + 정수 라벨마스크(np.ndarray)를 유지.
     - view.scene()의 '기저 픽스맵' 크기에 맞춰 자동 리크리에이트
     - scene이 교체돼도 overlay_item을 재부착하여 안전
+    - 라벨용 오버레이와 하이라이트용 오버레이를 분리
     """
     def __init__(self, view: QGraphicsView):
         self.view = view
         if self.view.scene() is None:
             self.view.setScene(QGraphicsScene(self.view))
+
+        # 라벨용 오버레이
         self.overlay_item = QGraphicsPixmapItem()
         self.overlay_item.setZValue(1000)
+
+        # 하이라이트(같은 RGB 표시) 오버레이
+        self.hint_item = QGraphicsPixmapItem()
+        self.hint_item.setZValue(1001)
+
         self._base_rect = None
-        self.qimage = None               # ARGB32
-        self.mask_idx = None             # (H,W) uint8
-        # 처음 부착
+        self.qimage = None          # 라벨 그리기용
+        self.hint_qimage = None     # 동일 RGB 하이라이트용
+        self.mask_idx = None        # (H,W) uint8 라벨맵 (0=미지정, 1/2/3...)
+
         self._ensure_binding()
 
     def _ensure_binding(self):
