@@ -552,12 +552,18 @@ class LinkedDualPainter(QtCore.QObject):
             pass
         try:
             if hasattr(self, "left") and self.left:
-                self.left.removeEventFilter(self)
+                try:
+                    self.left.viewport().removeEventFilter(self)
+                except Exception:
+                    pass
         except Exception:
             pass
         try:
             if hasattr(self, "right") and self.right:
-                self.right.removeEventFilter(self)
+                try:
+                    self.right.viewport().removeEventFilter(self)
+                except Exception:
+                    pass
         except Exception:
             pass
 
