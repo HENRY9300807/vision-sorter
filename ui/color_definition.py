@@ -88,6 +88,15 @@ class PhotoViewer(QtWidgets.QDialog):
         self.pixel_view.setScene(self.pixel_scene)
         self.pixelmap_item = None
 
+        # 1) QGraphicsView 2개를 컨트롤러에 등록
+        self._views = [self.real_photo, self.pixel_view]
+        self.zoomer = SynchronizedZoomer(*self._views)
+
+        # 2) 안전장치: 씬이 없으면 생성
+        for v in self._views:
+            if v.scene() is None:
+                v.setScene(QGraphicsScene(self))
+
         self.files = self._scan_files()
         self.index = 0
 
@@ -97,6 +106,21 @@ class PhotoViewer(QtWidgets.QDialog):
         self.saveButton.clicked.connect(self.confirm_colors)
         self.exitButton.clicked.connect(self.safe_exit)
         self.clearDataButton.clicked.connect(self.clear_data)
+
+        # 3) 버튼 시그널 연결 (objectName: expansion / reduction / nextButton)
+        # expansion/reduction 버튼이 있는 경우에만 연결
+        if hasattr(self, 'expansion'):
+            self.expansion.clicked.connect(self._on_zoom_in)
+        if hasattr(self, 'reduction'):
+            self.reduction.clicked.connect(self._on_zoom_out)
+
+        # nextButton을 누르면 '다음 이미지 로드' 로직이 이미 연결되어 있을 수 있으니
+        # 이벤트 루프의 다음 턴에 reset이 실행되도록 singleShot(0) 사용
+        # 기존 next_photo 연결을 유지하면서 줌 리셋도 추가
+        original_next = self.nextButton.clicked
+        self.nextButton.clicked.disconnect()
+        self.nextButton.clicked.connect(self.next_photo)
+        self.nextButton.clicked.connect(lambda: QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit))
 
         # 주기적 갱신(신규 파일 감지)
         self.timer = QtCore.QTimer(self)
@@ -135,7 +159,9 @@ class PhotoViewer(QtWidgets.QDialog):
         pixmap2 = to_pixmap(pixel_map, QtGui)
         self.pixel_scene.clear()
         self.pixelmap_item = self.pixel_scene.addPixmap(pixmap2)
-        self.pixel_view.fitInView(self.pixelmap_item, QtCore.Qt.KeepAspectRatio)
+        # 줌 컨트롤러를 통해 fitInView 대신 reset_zoom_to_fit 사용
+        # 단, 이미지가 업데이트된 후이므로 바로 리셋하면 안 됨
+        # 대신 다음 이미지 로드 시 또는 resizeEvent에서 처리
 
     def show_photo(self, fpath: Path):
         img = cv2.imread(str(fpath))
