@@ -175,40 +175,78 @@ class OverlayMask:
         y = int(scene_pos.y() - self._base_rect.top())
         return QtCore.QPoint(x, y)
 
-    def paint_dot(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
-        """보이기용 qimage와 정수 마스크를 동시에 갱신."""
-        # 그리기 직전에 항상 바인딩 재확인(씬이 방금 바뀐 상황 대비)
-        self._ensure_binding()
+    def paint_disk(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
+        """라벨 그리기(마스크도 함께)."""
         if self.qimage is None or self.mask_idx is None:
             return
         h, w = self.mask_idx.shape
         if not (0 <= local_pt.x() < w and 0 <= local_pt.y() < h):
             return
 
-        # 1) 시각용
+        # 라벨 오버레이
         try:
-            painter = QtGui.QPainter(self.qimage)
-            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QtGui.QBrush(color))
-            painter.drawEllipse(local_pt, radius, radius)
-            painter.end()
-            # overlay_item 유효성 보장 후 갱신
+            p = QtGui.QPainter(self.qimage)
+            p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QtGui.QBrush(color))
+            p.drawEllipse(local_pt, radius, radius)
+            p.end()
             self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
         except Exception:
-            # 삭제 타이밍에 걸리면 다음 페인트에서 자동 복구됨
             return
 
-        # 2) 라벨맵(정수)
+        # 라벨맵
         cv2.circle(self.mask_idx, (local_pt.x(), local_pt.y()), int(radius), int(label_idx), thickness=-1)
 
-    def clear(self):
-        # 씬/오버레이 상태 보장 후 초기화
+    def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
+        """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
+        if self.hint_qimage is None:
+            return
+        h, w = mask_bool.shape
+        if h != self.hint_qimage.height() or w != self.hint_qimage.width():
+            return
+        # RGBA 배열 만들기
+        arr = np.zeros((h, w, 4), dtype=np.uint8)
+        arr[mask_bool] = [color.red(), color.green(), color.blue(), color.alpha()]
+        qimg = QtGui.QImage(arr.data, w, h, 4*w, QtGui.QImage.Format_RGBA8888)
+        self.hint_qimage = qimg.copy()
         self._ensure_binding()
-        if self.qimage is not None and not self.qimage.isNull():
+        self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
+
+    def clear_hint(self):
+        """하이라이트만 지우기."""
+        if self.hint_qimage is not None:
+            self.hint_qimage.fill(Qt.transparent)
+            self._ensure_binding()
+            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
+
+    def recolor_from_labelmap(self, mapping: dict):
+        """mask_idx를 이용해 라벨별 색으로 라벨 오버레이를 다시 만든다."""
+        if self.mask_idx is None or self.qimage is None:
+            return
+        h, w = self.mask_idx.shape
+        arr = np.zeros((h, w, 4), dtype=np.uint8)
+        for idx, qcol in mapping.items():
+            m = (self.mask_idx == idx)
+            if not m.any():
+                continue
+            arr[m] = [qcol.red(), qcol.green(), qcol.blue(), qcol.alpha()]
+        qimg = QtGui.QImage(arr.data, w, h, 4*w, QtGui.QImage.Format_RGBA8888)
+        self.qimage = qimg.copy()
+        self._ensure_binding()
+        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+
+    def clear_all(self):
+        """전체 리셋(다음 이미지 대비)."""
+        if self.qimage is not None:
             self.qimage.fill(Qt.transparent)
+            self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        if self.hint_qimage is not None:
+            self.hint_qimage.fill(Qt.transparent)
+            self._ensure_binding()
+            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
         if self.mask_idx is not None:
             self.mask_idx[:] = 0
 
