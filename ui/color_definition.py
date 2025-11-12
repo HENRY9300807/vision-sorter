@@ -7,7 +7,12 @@ import cv2
 import os
 import datetime
 import numpy as np
-import sip  # PyQt5에서 객체 삭제 여부 확인용
+# PyQt5에서 객체 삭제 여부 확인용
+try:
+    import sip   # 일반 sip 모듈(있으면 사용)
+except Exception:
+    # 최신 PyQt5 환경에서는 sip이 PyQt5.sip 로 제공되는 경우가 있음
+    from PyQt5 import sip
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
 from package.color_utils import add_color_def, save_defs, clear_defs
