@@ -300,6 +300,18 @@ class PhotoViewer(QtWidgets.QDialog):
         # nextButton 클릭 시 또는 초기 로드 시에만 리셋되도록 함
         QtCore.QTimer.singleShot(10, self.reset_zoom_to_fit)
 
+    def _on_next_safely(self):
+        """nextButton 클릭 시 안전하게 처리: 페인터 clear 후 다음 틱에서 줌 리셋"""
+        # 1) 현재 남아있는 브러시/오버레이 안전 삭제
+        if hasattr(self, 'left_painter'):
+            self.left_painter.clear()
+        if hasattr(self, 'right_painter'):
+            self.right_painter.clear()
+        # 2) 이미지 로드 (next_photo 호출)
+        self.next_photo()
+        # 3) 이미지가 교체될 시간을 한 틱 주고, 그 다음에 원배율로 맞춤
+        QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit)
+
     def next_photo(self):
         self.files = self._scan_files()
         if not self.files:
