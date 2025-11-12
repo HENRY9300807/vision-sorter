@@ -297,6 +297,13 @@ class LinkedDualPainter(QtCore.QObject):
     - 같은 RGB 값 하이라이트 기능
     - 저장 시 오른쪽 픽셀 뷰 재색칠 기능
     """
+    # 라벨 ID -> 이름 매핑
+    LABEL_NAMES = {
+        LABEL_PRODUCT: "product",
+        LABEL_BACKGROUND: "background",
+        LABEL_DEFECT: "defect",
+    }
+    
     def __init__(self, root: QtWidgets.QWidget, left: QGraphicsView, right: QGraphicsView,
                  label_selector, radius: int = 8):
         super().__init__(root)
