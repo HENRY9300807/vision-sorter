@@ -5,6 +5,8 @@ from PyQt5.QtGui import QTransform
 from PyQt5.QtCore import Qt, QPointF, QEvent
 import cv2
 import os
+import datetime
+import numpy as np
 import sip  # PyQt5에서 객체 삭제 여부 확인용
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
