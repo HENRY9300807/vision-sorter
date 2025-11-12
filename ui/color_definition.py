@@ -255,53 +255,28 @@ class OverlayMask:
         if (self.mask_idx is None) or (self.mask_idx.shape != (h, w)):
             self.mask_idx = np.zeros((h, w), dtype=np.uint8)
 
-    def paint_disk(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
-        """라벨 그리기(마스크도 함께)."""
-        # 항상 마스크/오버레이 준비 보장
+    def paint_disk(self, local_pt: QtCore.QPointF, radius: int, color: QtGui.QColor, label_id: int):
+        """오버레이에 시각 표시 + mask_idx에 '정수 라벨' 기록"""
         if not self.ensure_from_base():
             return
-        
-        # ✅ 라벨 ID 검증 (디버그용)
-        if label_idx <= 0:
-            print(f"[WARN] paint_disk: invalid label_idx={label_idx}, must be > 0")
-            return
 
-        # --- 1) 오버레이(시각) ---
-        if self.qimage is None:
-            try:
-                pm = self.overlay_item.pixmap()
-                if not pm.isNull():
-                    self.qimage = QtGui.QImage(pm.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
-                    self.qimage.fill(Qt.transparent)
-            except Exception:
-                pass
-        
-        if self.qimage is not None:
-            try:
-                p = QtGui.QPainter(self.qimage)
-                p.setRenderHint(QtGui.QPainter.Antialiasing, True)
-                p.setPen(Qt.NoPen)
-                p.setBrush(QtGui.QBrush(color))
-                p.drawEllipse(local_pt, radius, radius)
-                p.end()
-                self._ensure_binding()
-                self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
-            except Exception as e:
-                print(f"[WARN] paint_disk overlay error: {e}")
+        # 1) 시각 오버레이
+        p = QtGui.QPainter(self.qimage)
+        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        p.setPen(QtCore.Qt.NoPen)
+        p.setBrush(QtGui.QBrush(color))
+        p.drawEllipse(local_pt, radius, radius)
+        p.end()
+        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
 
-        # --- 2) 라벨맵(수치) ---
-        self._ensure_mask()
-        if self.mask_idx is None:
-            return
-        
+        # 2) 마스크 기록(반드시 1/2/3)
         x, y = int(round(local_pt.x())), int(round(local_pt.y()))
         h, w = self.mask_idx.shape
         if 0 <= x < w and 0 <= y < h:
-            cv2.circle(self.mask_idx, (x, y), int(radius), int(label_idx), thickness=-1)
-        
-        # ---- 디버그 (임시) ----
-        vals = np.unique(self.mask_idx).tolist()
-        print(f"[PAINT] {'L' if hasattr(self, '_is_left') and self._is_left else 'R'} uniq={vals}")
+            cv2.circle(self.mask_idx, (x, y), int(radius), int(label_id), thickness=-1)
+
+        # 디버그(임시): 정말 써졌는지 확인
+        # print("[PAINT] uniq=", np.unique(self.mask_idx).tolist(), " last=", label_id)
 
     def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
         """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
