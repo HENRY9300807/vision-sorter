@@ -294,11 +294,15 @@ class OverlayMask:
         self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
 
     def clear_hint(self):
-        """하이라이트만 지우기."""
-        if self.hint_qimage is not None:
-            self.hint_qimage.fill(Qt.transparent)
-            self._ensure_binding()
-            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
+        """하이라이트만 지우기(마스크는 유지)."""
+        if getattr(self, "qimage", None) is not None:
+            self.qimage.fill(QtCore.Qt.transparent)
+            if getattr(self, "overlay_item", None):
+                self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        if getattr(self, "hint_qimage", None) is not None:
+            self.hint_qimage.fill(QtCore.Qt.transparent)
+            if getattr(self, "hint_item", None):
+                self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
 
     def recolor_from_labelmap(self, mapping: dict):
         """mask_idx를 이용해 라벨별 색으로 라벨 오버레이를 다시 만든다."""
