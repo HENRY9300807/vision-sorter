@@ -609,76 +609,63 @@ class LinkedDualPainter(QtCore.QObject):
 
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
-        # 0) 오른쪽 마스크 유효성
-        if self.ovR.mask_idx is None:
-            print("[SKIP] right mask is None -> skip")
-            self._update_live()
+        import numpy as _np
+
+        # --- 좌/우 라벨 집합(0=미지정은 제외) ---
+        labelsL = set()
+        labelsR = set()
+        if self.ovL.mask_idx is not None:
+            labelsL = set(_np.unique(self.ovL.mask_idx).tolist())
+            labelsL.discard(0)
+        if self.ovR.mask_idx is not None:
+            labelsR = set(_np.unique(self.ovR.mask_idx).tolist())
+            labelsR.discard(0)
+
+        print(f"[CHK] L={sorted(labelsL)}  R={sorted(labelsR)}")
+
+        # ✅ 좌/우 모두 무라벨일 때만 스킵
+        if not labelsL and not labelsR:
+            print("[SKIP] both sides have no labels -> skip")
+            if hasattr(self, "_update_live"):
+                self._update_live()
             return
 
-        # 1) ✅ 오른쪽(픽셀화) 라벨만으로 저장 여부 판정 (0=미지정 제외)
-        uniqR = np.unique(self.ovR.mask_idx)
-        labelsR = set(uniqR.tolist())
-        labelsR.discard(0)  # 0 제거
-        print(f"[CHK] unique(R)={uniqR}, labels(no0)={labelsR}")
-
-        # ✅ 변경: 라벨이 '전혀 없을 때'만 스킵. background-only는 저장 허용.
-        if not labelsR:
-            print(f"[SKIP] right has no labels -> skip. labelsR={labelsR}")
-            self._update_live()
+        # (선택) 저장 한도 체크 유지
+        if hasattr(self, "saver") and not self.saver.can_save():
+            print("[HOLD] 저장 한도 도달 → 저장 없이 선별만 계속.")
+            if hasattr(self, "_update_live"):
+                self._update_live()
             return
 
-        # 2) 저장 상한 도달 시 저장 생략하되 선별은 계속
-        if not self.saver.can_save():
-            print("[HOLD] 유효 저장 상한 도달 → 저장 없이 선별만 계속.")
-            self._update_live()
-            return
-
-        # --- 저장 실행 ---
+        # --- 저장 ---
         out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # 왼쪽 마스크도 저장 (있으면)
-        if self.ovL.mask_idx is not None:
+        if self.ovL.mask_idx is not None and labelsL:
             cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
-            np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
-        
-        # 오른쪽 마스크 저장
-        cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-        np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+            _np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
 
-        print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
+        if self.ovR.mask_idx is not None and labelsR:
+            cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
+            _np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
 
-        # 오른쪽을 라벨 색으로 "바로" 재색칠
-        self.ovR.recolor_from_labelmap(LABEL_COLORS)
-        self.ovR.clear_hint()
+        # 라벨 있는 쪽이 하나라도 있으면 color_defs 갱신
+        self._save_color_defs()
 
-        # --- RGB 저장(오른쪽 기준) ---
-        rpmi = _largest_pixmap_item(self.right.scene())
-        if rpmi and not rpmi.pixmap().isNull():
-            arr = self._qimage_to_rgb_array(rpmi.pixmap())  # (H,W,3)
-            defs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "color_defs.json")
-            try:
-                import json
-                with open(defs_path, "r", encoding="utf-8") as f:
-                    defs = json.load(f)
-            except Exception:
-                defs = {}
+        print(f"[SAVED] labels => L:{bool(labelsL)} R:{bool(labelsR)}")
 
-            for lid, name in [(LABEL_PRODUCT, "product"), (LABEL_BACKGROUND, "background"), (LABEL_DEFECT, "defect")]:
-                m = (self.ovR.mask_idx == lid)
-                if m.any():
-                    rgb = arr[m].mean(axis=0).round(2).tolist()
-                    defs[name] = {"rgb": rgb, "ts": ts}
-
-            with open(defs_path, "w", encoding="utf-8") as f:
-                json.dump(defs, f, ensure_ascii=False, indent=2)
-            print("[SAVED] color_defs.json updated")
-
-        # 카운터 증가 + 진행도 갱신 + 실시간 상태 갱신
-        self.saver.on_saved()
-        self._update_progress_label()
-        self._update_live()
+        # 후처리
+        if labelsR:
+            self.ovR.recolor_from_labelmap(LABEL_COLORS)
+        if hasattr(self.ovR, "clear_hint"):
+            self.ovR.clear_hint()
+        if hasattr(self, "saver"):
+            self.saver.on_saved()
+            if hasattr(self, "_update_progress_label"):
+                self._update_progress_label()
+        if hasattr(self, "_update_live"):
+            self._update_live()
 
 
 class SynchronizedZoomer:
