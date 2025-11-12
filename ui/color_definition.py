@@ -349,12 +349,15 @@ class LinkedDualPainter(QtCore.QObject):
         self.root = root
         self.left = left
         self.right = right
-        self.ovL = OverlayMask(left)
-        self.ovR = OverlayMask(right)
         self.label_selector = label_selector
         self.radius = max(1, int(radius))
         self._painting = False
         self._in_reset = False
+        self._armed = False   # 준비 완료 플래그
+
+        # OverlayMask는 나중에(ARM 시점)에 생성
+        self.ovL = None
+        self.ovR = None
 
         # 설정 로드 및 세션/익스포터 준비
         cfg = get_config()
@@ -366,11 +369,12 @@ class LinkedDualPainter(QtCore.QObject):
 
         # (선택) 진행도 라벨이 있으면 갱신용으로 보관
         self._progress_label = root.findChild(QtWidgets.QLabel, "save_count_label")
-        self._update_progress_label()
+        if self._progress_label:
+            self._update_progress_label()
 
-        # 이벤트 필터는 viewport에 단다(정확한 마우스 좌표 확보)
-        self.left.viewport().installEventFilter(self)
-        self.right.viewport().installEventFilter(self)
+        # 이벤트 필터는 나중에(ARM 시점)에 단다
+        # self.left.viewport().installEventFilter(self)  ← 지금은 보류
+        # self.right.viewport().installEventFilter(self) ← 지금은 보류
 
         # 보기 품질/앵커
         for v in (self.left, self.right):
@@ -388,6 +392,36 @@ class LinkedDualPainter(QtCore.QObject):
         sv = root.findChild(QtWidgets.QPushButton, "saveButton")
         if sv:
             sv.clicked.connect(self.save_masks_and_recolor_right)
+
+    def _has_base_pixmap(self, view):
+        """뷰에 유효한 픽스맵 아이템이 있는지 확인"""
+        sc = view.scene()
+        if not sc:
+            return False
+        for it in sc.items():
+            if isinstance(it, QGraphicsPixmapItem):
+                try:
+                    pm = it.pixmap()
+                    if pm and not pm.isNull():
+                        return True
+                except Exception:
+                    continue
+        return False
+
+    def arm_when_ready(self):
+        """픽스맵이 실제 장착되면 그때 ARM. 없으면 재시도."""
+        if self._has_base_pixmap(self.left) and self._has_base_pixmap(self.right):
+            # 씬/오버레이 준비
+            self.ovL = OverlayMask(self.left)
+            self.ovR = OverlayMask(self.right)
+            # 이벤트필터 장착
+            self.left.viewport().installEventFilter(self)
+            self.right.viewport().installEventFilter(self)
+            self._armed = True
+            print("[ARM] painting armed")
+            return
+        # 아직이면 200ms 뒤 재시도
+        QtCore.QTimer.singleShot(200, self.arm_when_ready)
 
     # ---------- 내부 유틸 ----------
     def _ensure_ready(self):
