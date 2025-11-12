@@ -305,7 +305,7 @@ class LinkedDualPainter(QtCore.QObject):
         h, w = qimg.height(), qimg.width()
         ptr = qimg.bits()
         ptr.setsize(h * w * 3)
-        arr = np.frombuffer(ptr, np.uint8).reshape((h, w, 3)).copy()
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 3)).copy()
         return arr
 
     def _right_base_rgb(self):
