@@ -318,14 +318,16 @@ class OverlayMask:
 
     def clear_all(self):
         """전체 리셋(다음 이미지 대비)."""
+        if not self.ensure_from_base():
+            return
         if self.qimage is not None:
             self.qimage.fill(Qt.transparent)
-            self._ensure_binding()
-            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+            if self.overlay_item is not None:
+                self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
         if self.hint_qimage is not None:
             self.hint_qimage.fill(Qt.transparent)
-            self._ensure_binding()
-            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
+            if self.hint_item is not None:
+                self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
         if self.mask_idx is not None:
             self.mask_idx[:] = 0
 
