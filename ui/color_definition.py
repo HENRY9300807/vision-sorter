@@ -300,6 +300,8 @@ class OverlayMask:
 
     def recolor_from_labelmap(self, mapping: dict):
         """mask_idx를 이용해 라벨별 색으로 라벨 오버레이를 다시 만든다."""
+        if not self.ensure_from_base():
+            return
         if self.mask_idx is None or self.qimage is None:
             return
         h, w = self.mask_idx.shape
@@ -311,8 +313,8 @@ class OverlayMask:
             arr[m] = [qcol.red(), qcol.green(), qcol.blue(), qcol.alpha()]
         qimg = QtGui.QImage(arr.data, w, h, 4*w, QtGui.QImage.Format_RGBA8888)
         self.qimage = qimg.copy()
-        self._ensure_binding()
-        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        if self.overlay_item is not None:
+            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
 
     def clear_all(self):
         """전체 리셋(다음 이미지 대비)."""
