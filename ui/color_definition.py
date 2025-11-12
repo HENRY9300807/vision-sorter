@@ -428,6 +428,13 @@ class LinkedDualPainter(QtCore.QObject):
         return None
 
     def _paint_pair(self, side: str, view_pos: QtCore.QPoint):
+        # ✅ 안전 가드: 뷰가 삭제되었는지 확인
+        try:
+            if _is_deleted(self.left) or _is_deleted(self.right):
+                return
+        except Exception:
+            return
+        
         if not self._ensure_ready():
             return
         label_idx, color = self.label_selector()
@@ -528,6 +535,24 @@ class LinkedDualPainter(QtCore.QObject):
         """양쪽 오버레이 모두 초기화"""
         self.ovL.clear_all()
         self.ovR.clear_all()
+
+    def shutdown(self):
+        """종료 시 이벤트 필터 및 타이머 정리"""
+        try:
+            if hasattr(self, "timer") and self.timer:
+                self.timer.stop()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "left") and self.left:
+                self.left.removeEventFilter(self)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "right") and self.right:
+                self.right.removeEventFilter(self)
+        except Exception:
+            pass
 
     def _update_progress_label(self):
         """진행도 라벨 갱신."""
