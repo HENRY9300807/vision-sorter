@@ -196,7 +196,8 @@ class PhotoViewer(QtWidgets.QDialog):
 
         # 버튼 연결
         self.clearButton.clicked.connect(self.clear_folder)
-        self.nextButton.clicked.connect(self.next_photo)
+        # nextButton은 중앙에서 안전하게 처리 (페인터 clear + 줌 리셋)
+        self.nextButton.clicked.connect(self._on_next_safely)
         self.saveButton.clicked.connect(self.confirm_colors)
         self.exitButton.clicked.connect(self.safe_exit)
         self.clearDataButton.clicked.connect(self.clear_data)
