@@ -18,11 +18,16 @@ from package.operation import (
 
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
 
+# 라벨 상수 통일
+LABEL_PRODUCT = 1
+LABEL_BACKGROUND = 2
+LABEL_DEFECT = 3
+
 # 라벨 색 (오른쪽 픽셀 뷰 재색칠에 사용)
 LABEL_COLORS = {
-    1: QtGui.QColor(0, 200, 0, 160),      # product = 초록
-    2: QtGui.QColor(0, 140, 255, 160),    # background = 파랑
-    3: QtGui.QColor(255, 60, 60, 160),    # defect = 빨강
+    LABEL_PRODUCT: QtGui.QColor(0, 200, 0, 160),      # product = 초록
+    LABEL_BACKGROUND: QtGui.QColor(0, 140, 255, 160),    # background = 파랑
+    LABEL_DEFECT: QtGui.QColor(255, 60, 60, 160),    # defect = 빨강
 }
 
 # 같은 RGB값 하이라이트 색
