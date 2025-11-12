@@ -626,10 +626,10 @@ class LinkedDualPainter(QtCore.QObject):
 
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
-        def _labels_no0(mask) -> set:
-            if mask is None:
+        def _labels_no0(m):
+            if m is None:
                 return set()
-            s = set(np.unique(mask).tolist())
+            s = set(np.unique(m).tolist())
             s.discard(0)
             return s
 
@@ -643,7 +643,6 @@ class LinkedDualPainter(QtCore.QObject):
         R = _labels_no0(self.ovR.mask_idx)
         print(f"[CHK] L={sorted(L)}  R={sorted(R)}")
 
-        # ✅ 둘 다 무라벨이면만 스킵
         if not L and not R:
             print("[SKIP] both sides have no labels -> skip masks only")
             if hasattr(self.ovR, "clear_hint"):
@@ -659,19 +658,18 @@ class LinkedDualPainter(QtCore.QObject):
                 self._update_live()
             return
 
-        # --- 라벨 있는 쪽만 저장 ---
-        out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
-        os.makedirs(out_dir, exist_ok=True)
+        out = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
+        os.makedirs(out, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if L:
-            cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"),  self.ovL.mask_idx)
-            np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"),   self.ovL.mask_idx)
+            cv2.imwrite(os.path.join(out, f"left_mask_{ts}.png"),  self.ovL.mask_idx)
+            np.save(os.path.join(out, f"left_mask_{ts}.npy"),   self.ovL.mask_idx)
         if R:
-            cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-            np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"),  self.ovR.mask_idx)
+            cv2.imwrite(os.path.join(out, f"right_mask_{ts}.png"), self.ovR.mask_idx)
+            np.save(os.path.join(out, f"right_mask_{ts}.npy"),  self.ovR.mask_idx)
 
-        print(f"[SAVED] masks -> {out_dir} ({'L' if L else ''}{'R' if R else ''})")
+        print(f"[SAVED] masks -> {out} ({'L' if L else ''}{'R' if R else ''})")
 
         # 후처리
         try:
