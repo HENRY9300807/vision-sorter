@@ -1,5 +1,8 @@
 from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
+from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView, QGraphicsPixmapItem
+from PyQt5.QtGui import QTransform
+from PyQt5.QtCore import Qt
 import cv2
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
@@ -10,6 +13,63 @@ from package.operation import (
 )
 
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
+
+
+class SynchronizedZoomer:
+    """
+    두 개 이상의 QGraphicsView에 동일한 확대/축소를 적용.
+    - current_scale은 fitInView 후의 '기준 배율' 대비 추가 배율을 나타냄.
+    - reset_zoom_to_fit() 호출 시 기준 배율로 복귀.
+    """
+    def __init__(self, *views: QGraphicsView):
+        self.views = list(views)
+        self.min_scale = 0.10
+        self.max_scale = 10.0
+        self.current_scale = 1.0
+
+        for v in self.views:
+            # 보기 품질/동작 설정
+            v.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
+            v.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
+            v.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+            if v.scene() is None:
+                v.setScene(QGraphicsScene(v))
+
+        # 시작 시 한 번 맞춰두면 좋다
+        self.reset_zoom_to_fit()
+
+    def _fit_one(self, v: QGraphicsView):
+        sc = v.scene()
+        if sc is None:
+            return
+        rect = sc.itemsBoundingRect()
+        if rect.isValid():
+            v.setTransform(QTransform())               # 기준 변환 초기화
+            v.fitInView(rect, Qt.KeepAspectRatio)      # 보기 창에 꽉 차게(비율 유지)
+
+    def reset_zoom_to_fit(self):
+        for v in self.views:
+            self._fit_one(v)
+        self.current_scale = 1.0
+
+    def _apply_scale(self, factor: float):
+        # 현재 기준 대비 추가 배율을 factor만큼 곱한다.
+        for v in self.views:
+            v.scale(factor, factor)
+
+    def zoom(self, direction: int):
+        """
+        direction: +1(확대), -1(축소)
+        배율은 1.15 배수로 가감하고, 최소/최대 배율을 클램프.
+        """
+        step = 1.15 if direction > 0 else (1.0 / 1.15)
+        new_scale = self.current_scale * step
+        new_scale = max(self.min_scale, min(self.max_scale, new_scale))
+        factor = new_scale / self.current_scale
+        if abs(factor - 1.0) < 1e-6:
+            return
+        self._apply_scale(factor)
+        self.current_scale = new_scale
 
 
 class PhotoViewer(QtWidgets.QDialog):
