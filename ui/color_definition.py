@@ -9,10 +9,34 @@ import datetime
 import numpy as np
 # PyQt5에서 객체 삭제 여부 확인용
 try:
-    import sip   # 일반 sip 모듈(있으면 사용)
+    import sip   # type: ignore  # 일반 sip 모듈(있으면 사용)
 except Exception:
     # 최신 PyQt5 환경에서는 sip이 PyQt5.sip 로 제공되는 경우가 있음
-    from PyQt5 import sip
+    try:
+        from PyQt5 import sip  # type: ignore
+    except Exception:
+        # sip이 전혀 없는 경우를 대비한 폴백
+        sip = None  # type: ignore
+
+# 안전한 isdeleted 체크 함수
+def _is_deleted(obj):
+    """Qt 객체가 삭제되었는지 안전하게 확인."""
+    if sip is None:
+        # sip가 없으면 try-except로 확인
+        try:
+            _ = obj.scene()
+            return False
+        except (RuntimeError, AttributeError):
+            return True
+    try:
+        return sip.isdeleted(obj)
+    except Exception:
+        # sip.isdeleted() 호출 실패 시 try-except로 확인
+        try:
+            _ = obj.scene()
+            return False
+        except (RuntimeError, AttributeError):
+            return True
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
 from package.color_utils import add_color_def, save_defs, clear_defs
@@ -54,7 +78,7 @@ def _largest_pixmap_item(scene: QtWidgets.QGraphicsScene):
     for it in scene.items():
         if not isinstance(it, QGraphicsPixmapItem):
             continue
-        if sip.isdeleted(it):
+        if _is_deleted(it):
             continue
         try:
             pm = it.pixmap()
@@ -105,7 +129,7 @@ class OverlayMask:
         for attr in ("overlay_item", "hint_item"):
             item = getattr(self, attr)
             # 삭제되었으면 재생성
-            if item is None or sip.isdeleted(item):
+            if item is None or _is_deleted(item):
                 item = QGraphicsPixmapItem()
                 setattr(self, attr, item)
                 item.setZValue(1000 if attr == "overlay_item" else 1001)
