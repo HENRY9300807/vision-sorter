@@ -417,6 +417,9 @@ class LinkedDualPainter(QtCore.QObject):
                 mask = self._make_match_mask_on_right(rgb, MATCH_TOL)
                 if mask is not None:
                     self.ovR.show_match_hint(mask, MATCH_HINT_COLOR)
+        
+        # 칠한 즉시 실시간 상태 갱신
+        self._update_live()
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
