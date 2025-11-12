@@ -256,6 +256,8 @@ class LinkedDualPainter(QtCore.QObject):
     좌/우 두 뷰가 서로 '정규화 좌표'로 동기화 페인팅:
     - 한쪽에 칠하면 다른 쪽에도 동일 위치로 즉시 반영
     - 저장 시 두 마스크를 PNG/NPY로 기록
+    - 같은 RGB 값 하이라이트 기능
+    - 저장 시 오른쪽 픽셀 뷰 재색칠 기능
     """
     def __init__(self, root: QtWidgets.QWidget, left: QGraphicsView, right: QGraphicsView,
                  label_selector, radius: int = 8):
@@ -268,6 +270,7 @@ class LinkedDualPainter(QtCore.QObject):
         self.label_selector = label_selector
         self.radius = max(1, int(radius))
         self._painting = False
+        self._in_reset = False
 
         # 이벤트 필터는 viewport에 단다(정확한 마우스 좌표 확보)
         self.left.viewport().installEventFilter(self)
@@ -282,13 +285,13 @@ class LinkedDualPainter(QtCore.QObject):
         # 버튼 연결
         nb = root.findChild(QtWidgets.QPushButton, "nextButton")
         if nb:
-            nb.clicked.connect(self.on_next)   # 다음에서 안전 초기화
+            nb.clicked.connect(self._queue_reset)   # 다음에서 안전 초기화
         clr = root.findChild(QtWidgets.QPushButton, "clearDataButton")
         if clr:
             clr.clicked.connect(self.clear_both)
         sv = root.findChild(QtWidgets.QPushButton, "saveButton")
         if sv:
-            sv.clicked.connect(self.save_masks)
+            sv.clicked.connect(self.save_masks_and_recolor_right)
 
     # ---------- 좌표 변환/칠하기 ----------
     def _norm_from_local(self, ov: OverlayMask, pt: QtCore.QPoint):
