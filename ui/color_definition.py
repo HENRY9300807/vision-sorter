@@ -38,15 +38,34 @@ class OverlayMask:
         self._ensure_binding()
 
     def _ensure_binding(self):
-        # overlay_item이 현재 scene에 없으면 부착
-        if self.overlay_item.scene() is not self.view.scene():
-            if self.overlay_item.scene() is not None:
+        # 씬 보장
+        if self.view.scene() is None:
+            self.view.setScene(QGraphicsScene(self.view))
+        sc = self.view.scene()
+
+        # overlay_item이 삭제됐거나(None 포함) 유효하지 않으면 재생성
+        if (self.overlay_item is None) or sip.isdeleted(self.overlay_item):
+            self.overlay_item = QGraphicsPixmapItem()
+            self.overlay_item.setZValue(1000)
+
+        # 현재 overlay_item이 다른 씬에 붙어있거나, 씬이 바뀌었으면 재부착
+        try:
+            cur_sc = self.overlay_item.scene()
+        except Exception:
+            cur_sc = None
+
+        if cur_sc is not sc:
+            if cur_sc is not None:
                 try:
-                    self.overlay_item.scene().removeItem(self.overlay_item)
+                    cur_sc.removeItem(self.overlay_item)
                 except Exception:
                     pass
-            if self.view.scene() is not None:
-                self.view.scene().addItem(self.overlay_item)
+            if sc is not None:
+                sc.addItem(self.overlay_item)
+
+        # qimage가 이미 있다면 최신 픽스맵으로 다시 세팅(씬 교체 후 표시 유지)
+        if self.qimage is not None and not self.qimage.isNull():
+            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
 
     def _find_base_pixmap_item(self):
         sc = self.view.scene()
