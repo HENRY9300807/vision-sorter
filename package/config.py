@@ -24,6 +24,16 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _float_env(name: str, default: float) -> float:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except ValueError:
+        return default
+
+
 _CFG: Optional[AppConfig] = None
 
 
