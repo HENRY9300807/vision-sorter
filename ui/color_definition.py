@@ -538,7 +538,10 @@ class LinkedDualPainter(QtCore.QObject):
 
         # 1) ✅ 오른쪽(픽셀화) 라벨만으로 저장 여부 판정 (0=미지정 제외)
         if self.ovR.mask_idx is not None:
-            labelsR = set(np.unique(self.ovR.mask_idx).tolist())
+            uniqR = np.unique(self.ovR.mask_idx)
+            labelsR = set(uniqR.tolist())
+            labelsR.discard(0)  # 0 제거
+            print(f"[CHK] unique(R)={uniqR}, labels(no0)={labelsR}")
         else:
             # 오른쪽이 없을 때만 좌/우 합집합 사용(예외적 폴백)
             labelsR = set()
@@ -546,11 +549,12 @@ class LinkedDualPainter(QtCore.QObject):
                 if m is None:
                     continue
                 labelsR |= set(np.unique(m).tolist())
-        labelsR.discard(0)  # 0 제거
+            labelsR.discard(0)  # 0 제거
+            print(f"[CHK] right mask is None, using fallback, labels(no0)={labelsR}")
 
-        # ▶ 오른쪽이 background(2)만이거나 라벨이 전혀 없으면 스킵
+        # ✅ 배경만({LABEL_BACKGROUND})이거나 라벨 없음(∅)이면 스킵
         if (not labelsR) or (labelsR <= {LABEL_BACKGROUND}):
-            print(f"[SKIP] background-only → 저장 생략. labelsR={labelsR}")
+            print(f"[SKIP] right is background-only (or no labels). labelsR={labelsR}, LABEL_BACKGROUND={LABEL_BACKGROUND}")
             QMessageBox.information(self.root, "저장 스킵", "background만 지정되어 저장하지 않습니다.")
             # 하이라이트/라이브 상태는 정리/유지
             self.ovR.clear_hint()
