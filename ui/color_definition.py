@@ -106,20 +106,13 @@ class OverlayMask:
         if self.view.scene() is None:
             self.view.setScene(QGraphicsScene(self.view))
 
-        # 라벨용 오버레이
-        self.overlay_item = QGraphicsPixmapItem()
-        self.overlay_item.setZValue(1000)
-
-        # 하이라이트(같은 RGB 표시) 오버레이
-        self.hint_item = QGraphicsPixmapItem()
-        self.hint_item.setZValue(1001)
-
+        self.overlay_item = None
+        self.hint_item = None
         self._base_rect = None
         self.qimage = None          # 라벨 그리기용
         self.hint_qimage = None     # 동일 RGB 하이라이트용
         self.mask_idx = None        # (H,W) uint8 라벨맵 (0=미지정, 1/2/3...)
-
-        self._ensure_binding()
+        self._pm_item = None        # 베이스 픽스맵 아이템 캐시
 
     def _ensure_binding(self):
         # 씬 보장 및 아이템 재부착
