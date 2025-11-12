@@ -448,18 +448,35 @@ class LinkedDualPainter(QtCore.QObject):
 
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
-        # 저장
-        if self.ovL.mask_idx is None or self.ovR.mask_idx is None:
+        # 0) 마스크 유효성
+        if self.ovL.mask_idx is None and self.ovR.mask_idx is None:
             print("[INFO] 저장할 마스크가 없습니다.")
+            QMessageBox.information(self.root, "저장 건너뜀", "라벨이 비어 있어 저장하지 않습니다.")
             return
+
+        # 1) 좌/우 라벨 합집합 확인 (0은 미지정이므로 제외)
+        labelsL = set(np.unique(self.ovL.mask_idx).tolist()) if self.ovL.mask_idx is not None else {0}
+        labelsR = set(np.unique(self.ovR.mask_idx).tolist()) if self.ovR.mask_idx is not None else {0}
+        labels = (labelsL | labelsR) - {0}
+
+        # 2) 배경만 존재하거나(= {2}) 아예 비어 있으면 저장 skip
+        if (not labels) or (labels <= {LABEL_BACKGROUND}):
+            print("[SKIP] 배경만 라벨링된 이미지이므로 저장을 건너뜁니다.")
+            QMessageBox.information(self.root, "저장 건너뜀", "배경만 지정되어 저장하지 않습니다.")
+            # 하이라이트는 정리해 주는 편이 깔끔
+            self.ovR.clear_hint()
+            return
+
         out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
-        cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
-        np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
-        np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+        if self.ovL.mask_idx is not None:
+            cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
+            np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
+        if self.ovR.mask_idx is not None:
+            cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
+            np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
 
         print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
 
