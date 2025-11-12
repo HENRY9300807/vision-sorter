@@ -30,7 +30,7 @@ function Sync-Once {
     Write-Host "📤 $msg"
 }
 
-while ($true) {
+while ($tue) {
     Sync-Once
     Start-Sleep -Seconds $IntervalSec
 }
