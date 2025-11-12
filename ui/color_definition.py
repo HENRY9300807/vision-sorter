@@ -1013,7 +1013,23 @@ class PhotoViewer(QtWidgets.QDialog):
             self.cap_proc.terminate()
             print("📷 캡쳐 프로세스 종료")
 
+        # 페인터 정리
+        if hasattr(self, "linked_painter"):
+            try:
+                self.linked_painter.shutdown()
+            except Exception:
+                pass
+
         QtWidgets.QApplication.quit()
+
+    def closeEvent(self, e):
+        """종료 이벤트 처리"""
+        try:
+            if hasattr(self, "linked_painter"):
+                self.linked_painter.shutdown()
+        except Exception:
+            pass
+        super().closeEvent(e)
 
     # -------------------------------
     def eventFilter(self, source, event):
