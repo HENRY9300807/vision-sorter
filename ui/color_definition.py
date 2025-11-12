@@ -548,6 +548,52 @@ class LinkedDualPainter(QtCore.QObject):
         self.exporter.publish(area_cm2=area, trigger=trigger, stats=stats,
                               extra={"saved_count": self.saver.count})
 
+    def _label_rgb_from_left(self) -> dict[int, list[int]]:
+        """
+        좌측(실사) 이미지에서 라벨별 평균 RGB를 계산해서 반환.
+        좌측 마스크가 없으면 우측 마스크를 좌측 크기에 맞춰 최근접 리사이즈해 사용.
+        """
+        rgb = self._left_base_rgb()
+        if rgb is None:
+            return {}
+
+        # 1) 좌측 마스크 우선
+        maskL = self.ovL.mask_idx
+        if maskL is None or maskL.size == 0:
+            # 2) 폴백: 우측 마스크를 좌측 크기에 맞춤
+            maskR = self.ovR.mask_idx
+            if maskR is None or maskR.size == 0:
+                return {}
+            h, w = rgb.shape[:2]
+            maskL = cv2.resize(maskR, (w, h), interpolation=cv2.INTER_NEAREST)
+
+        out: dict[int, list[int]] = {}
+        for lid in (LABEL_PRODUCT, LABEL_BACKGROUND, LABEL_DEFECT):
+            sel = (maskL == lid)
+            if sel.any():
+                v = rgb[sel]  # (N,3)
+                mean = v.mean(axis=0).round().astype(np.uint8).tolist()
+                out[lid] = [int(mean[0]), int(mean[1]), int(mean[2])]
+        return out
+
+    def _save_color_defs(self):
+        """라벨별 평균 RGB를 color_defs.json에 반영."""
+        stats = self._label_rgb_from_left()
+        if not stats:
+            print("[COLOR_DEFS] no labeled pixels; skip")
+            return
+
+        # add_color_def / save_defs 시그니처 보호 호출
+        from package.color_utils import add_color_def, save_defs
+        for lid, rgb in stats.items():
+            name = self.LABEL_NAMES.get(lid, f"label_{lid}")
+            try:
+                add_color_def(name, rgb)        # (name, [r,g,b]) 형태
+            except TypeError:
+                add_color_def(name, *rgb)       # (name, r, g, b) 형태
+        save_defs()
+        print(f"[COLOR_DEFS] updated: { {self.LABEL_NAMES[k]: v for k, v in stats.items()} }")
+
     def save_masks_and_recolor_right(self):
         """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
         # 0) 마스크 유효성
