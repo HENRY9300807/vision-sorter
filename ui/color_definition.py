@@ -162,43 +162,65 @@ class OverlayMask:
         return _largest_pixmap_item(self.view.scene())
 
     def ensure_from_base(self) -> bool:
-        """기저 픽스맵 크기에 맞춰 qimage/mask를 보장."""
-        self._ensure_binding()
-        base = self._find_base()
+        """overlay/basemap 크기에 맞춰 mask_idx(0)와 qimage를 항상 준비"""
+        # base 픽스맵 얻기
+        sc = self.view.scene()
+        if not sc:
+            return False
+        base = None
+        area = -1
+        for it in sc.items():
+            if isinstance(it, QGraphicsPixmapItem):
+                try:
+                    pm = it.pixmap()
+                    if pm.isNull():
+                        continue
+                    a = pm.width() * pm.height()
+                    if a > area:
+                        base, area = it, a
+                except Exception:
+                    continue
         if base is None:
             return False
+
         try:
             pm = base.pixmap()
         except Exception:
             return False
         if pm.isNull():
             return False
-
         w, h = pm.width(), pm.height()
-        
-        # 마스크 배열 준비 (uint8, 0=미지정) - 항상 보장
-        if self.mask_idx is None or self.mask_idx.shape != (h, w):
-            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
 
-        # 오버레이 QImage 준비
-        need_new = (
-            self.qimage is None or
-            self.qimage.width() != w or
-            self.qimage.height() != h
-        )
-        if need_new:
-            # 라벨 QImage
+        # 오버레이 QImage 보장
+        if getattr(self, "qimage", None) is None or self.qimage.size() != pm.size():
             self.qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
             self.qimage.fill(Qt.transparent)
-            self._ensure_binding()
+
+        # 오버레이 Item 보장
+        if getattr(self, "overlay_item", None) is None:
+            self.overlay_item = QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.qimage))
+            self.overlay_item.setZValue(1000)
+            sc.addItem(self.overlay_item)
+        else:
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
-            # 힌트 QImage
+
+        # 힌트 QImage 보장
+        if getattr(self, "hint_item", None) is None:
             self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
             self.hint_qimage.fill(Qt.transparent)
-            self._ensure_binding()
+            self.hint_item = QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.hint_qimage))
+            self.hint_item.setZValue(1001)
+            sc.addItem(self.hint_item)
+        elif getattr(self, "hint_qimage", None) is None or self.hint_qimage.size() != pm.size():
+            self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
+            self.hint_qimage.fill(Qt.transparent)
             self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
 
-        # 좌표 변환용 SceneRect
+        # 마스크 보장 (0=미지정)
+        if getattr(self, "mask_idx", None) is None or self.mask_idx.shape != (h, w):
+            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
+
+        # 베이스 위치 캐시(좌표 변환용)
         try:
             self._base_rect = base.sceneBoundingRect()
         except Exception:
