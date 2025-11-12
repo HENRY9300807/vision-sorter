@@ -536,20 +536,26 @@ class LinkedDualPainter(QtCore.QObject):
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
-        # 좌/우 뷰 중 어디서 이벤트가 왔는지 판별
+        if not getattr(self, "_armed", False):
+            return False  # 아직 ARM 안 됨
+        
         if self._in_reset:
             return False
         
-        # 디버그: 이벤트 확인
-        # print("[EV]", "left" if obj is self.left.viewport() else "right" if obj is self.right.viewport() else "other")
-        
-        if ev.type() in (QEvent.MouseButtonPress, QEvent.MouseMove) and ev.buttons() & Qt.LeftButton:
-            if obj is self.left.viewport():
-                self._paint_one(self.left, self.ovL, ev.pos())
+        try:
+            is_left = (obj is self.left.viewport())
+            is_right = (obj is self.right.viewport())
+            if not (is_left or is_right):
+                return False
+            
+            if ev.type() == QEvent.MouseButtonPress and ev.buttons() & Qt.LeftButton:
+                self._paint_from_view('L' if is_left else 'R', ev.pos())
                 return True
-            elif obj is self.right.viewport():
-                self._paint_one(self.right, self.ovR, ev.pos())
+            if ev.type() == QEvent.MouseMove and ev.buttons() & Qt.LeftButton:
+                self._paint_from_view('L' if is_left else 'R', ev.pos())
                 return True
+        except Exception as e:
+            print("[WARN] paint error:", e)
         return False
 
     # ---------- next/clear/save ----------
@@ -560,18 +566,22 @@ class LinkedDualPainter(QtCore.QObject):
 
     def _do_reset(self):
         """씬/오버레이 최신 상태로 다시 묶고 오버레이만 지움(마스크는 유지)"""
-        self.ovL.ensure_from_base()
-        self.ovR.ensure_from_base()
-        self.ovL.clear_hint()
-        self.ovR.clear_hint()
+        if self.ovL is not None:
+            self.ovL.ensure_from_base()
+            self.ovL.clear_hint()
+        if self.ovR is not None:
+            self.ovR.ensure_from_base()
+            self.ovR.clear_hint()
         # 초기화 상태를 즉시 반영
         self._update_live()
         self._in_reset = False
 
     def clear_both(self):
         """양쪽 오버레이만 초기화(마스크는 유지)"""
-        self.ovL.clear_hint()
-        self.ovR.clear_hint()
+        if self.ovL is not None:
+            self.ovL.clear_hint()
+        if self.ovR is not None:
+            self.ovR.clear_hint()
 
     def shutdown(self):
         """종료 시 이벤트 필터 및 타이머 정리"""
