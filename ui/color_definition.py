@@ -503,15 +503,20 @@ class LinkedDualPainter(QtCore.QObject):
         # 0) 마스크 유효성
         if self.ovL.mask_idx is None and self.ovR.mask_idx is None:
             print("[INFO] 저장할 마스크가 없습니다.")
+            QMessageBox.information(self.root, "저장 건너뜀", "라벨이 비어 있어 저장하지 않습니다.")
             self._update_live()
             return
 
-        stats = self._label_stats()
-        
-        # 1) 배경만 존재하면 저장 skip
-        if self._is_background_only(stats):
-            print(f"[SKIP] 배경만 → 저장 생략. stats={stats}")
-            QMessageBox.information(self.root, "저장 스킵", "배경만 지정되어 저장하지 않습니다.")
+        # 1) 좌/우 라벨 합집합 확인 (0은 미지정이므로 제외)
+        labelsL = set(np.unique(self.ovL.mask_idx).tolist()) if self.ovL.mask_idx is not None else {0}
+        labelsR = set(np.unique(self.ovR.mask_idx).tolist()) if self.ovR.mask_idx is not None else {0}
+        labels = (labelsL | labelsR) - {0}
+
+        # ✅ 변경: 라벨이 '전혀 없을 때'만 스킵. background-only(={2})는 저장 허용
+        if not labels:
+            print("[SKIP] 라벨이 전혀 없어 저장을 건너뜁니다.")
+            QMessageBox.information(self.root, "저장 건너뜀", "라벨이 전혀 없어 저장하지 않습니다.")
+            self.ovR.clear_hint()
             self._update_live()
             return
 
@@ -536,7 +541,7 @@ class LinkedDualPainter(QtCore.QObject):
 
         print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
 
-        # 우측 픽셀 뷰 재색칠(클래스 컬러)
+        # 오른쪽을 라벨 색으로 "바로" 재색칠
         self.ovR.recolor_from_labelmap(LABEL_COLORS)
         self.ovR.clear_hint()
 
