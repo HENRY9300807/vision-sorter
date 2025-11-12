@@ -400,6 +400,8 @@ class LinkedDualPainter(QtCore.QObject):
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
+        if self._in_reset:
+            return False
         try:
             is_left = (obj is self.left.viewport())
             is_right = (obj is self.right.viewport())
@@ -408,10 +410,10 @@ class LinkedDualPainter(QtCore.QObject):
 
             if ev.type() == QEvent.MouseButtonPress and ev.buttons() & Qt.LeftButton:
                 self._painting = True
-                self._paint_pair(self.left if is_left else self.right, ev.pos())
+                self._paint_pair("left" if is_left else "right", ev.pos())
                 return True
             elif ev.type() == QEvent.MouseMove and self._painting and ev.buttons() & Qt.LeftButton:
-                self._paint_pair(self.left if is_left else self.right, ev.pos())
+                self._paint_pair("left" if is_left else "right", ev.pos())
                 return True
             elif ev.type() == QEvent.MouseButtonRelease and ev.button() == Qt.LeftButton:
                 self._painting = False
