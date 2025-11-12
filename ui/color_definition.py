@@ -427,6 +427,8 @@ class LinkedDualPainter(QtCore.QObject):
     def _ensure_ready(self):
         if self._in_reset:
             return False
+        if self.ovL is None or self.ovR is None:
+            return False
         return (self.ovL.ensure_from_base() and self.ovR.ensure_from_base())
 
     def _qimage_to_rgb_array(self, pm: QtGui.QPixmap) -> np.ndarray:
