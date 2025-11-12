@@ -114,10 +114,8 @@ class PhotoViewer(QtWidgets.QDialog):
         if hasattr(self, 'reduction'):
             self.reduction.clicked.connect(self._on_zoom_out)
 
-        # nextButton을 누르면 '다음 이미지 로드' 후 줌 리셋
-        # next_photo는 이미 연결되어 있으므로, 추가로 줌 리셋 연결
-        # 이벤트 루프의 다음 턴에 reset이 실행되도록 singleShot(0) 사용
-        self.nextButton.clicked.connect(lambda: QtCore.QTimer.singleShot(0, self.reset_zoom_to_fit))
+        # nextButton을 누르면 next_photo가 호출되고, 
+        # show_photo에서 자동으로 줌 리셋이 실행됨
 
         # 주기적 갱신(신규 파일 감지)
         self.timer = QtCore.QTimer(self)
