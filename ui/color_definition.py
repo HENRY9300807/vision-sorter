@@ -280,6 +280,18 @@ class LinkedDualPainter(QtCore.QObject):
         self._painting = False
         self._in_reset = False
 
+        # 설정 로드 및 세션/익스포터 준비
+        cfg = get_config()
+        self.saver = SessionSaver(cfg.max_valid_saves)
+        live_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "live")
+        self.exporter = RealTimeExporter(live_dir)
+        self.cm_per_pixel = cfg.cm_per_pixel
+        self.defect_min_area_cm2 = cfg.defect_min_area_cm2
+
+        # (선택) 진행도 라벨이 있으면 갱신용으로 보관
+        self._progress_label = root.findChild(QtWidgets.QLabel, "save_count_label")
+        self._update_progress_label()
+
         # 이벤트 필터는 viewport에 단다(정확한 마우스 좌표 확보)
         self.left.viewport().installEventFilter(self)
         self.right.viewport().installEventFilter(self)
