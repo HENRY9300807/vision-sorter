@@ -379,6 +379,17 @@ class PhotoViewer(QtWidgets.QDialog):
                 return True
         return False
 
+    def _wrap_wheel(self, base_wheel):
+        # Ctrl + 휠로 브러시 반경 조절 (기존 휠 줌은 그대로 두되, Ctrl일 때만 가로챔)
+        def handler(ev: QtGui.QWheelEvent):
+            if ev.modifiers() & Qt.ControlModifier:
+                delta = ev.angleDelta().y()
+                self.painter.set_radius(self.painter.radius + (2 if delta > 0 else -2))
+                ev.accept()
+            else:
+                base_wheel(ev)
+        return handler
+
     # -------------------------------
     def get_selected_label(self):
         if self.product.isChecked():
