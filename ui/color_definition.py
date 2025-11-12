@@ -479,58 +479,73 @@ class LinkedDualPainter(QtCore.QObject):
         if label_idx <= 0:
             print(f"[WARN] _paint_pair: invalid label_idx={label_idx} from label_selector")
             return
-        
-        # 디버그: 페인트 시작 로그 (처음 몇 번만)
-        if not hasattr(self, '_paint_debug_count'):
-            self._paint_debug_count = 0
-        self._paint_debug_count += 1
-        if self._paint_debug_count <= 3:
-            print(f"[PAINT_PAIR] side={side}, label_idx={label_idx}, radius={self.radius}")
 
         if side == "left":
-            # 좌측 라벨 페인트 + 우측 동기
-            scene_pt = self.left.mapToScene(view_pos)
-            lpt = self.ovL.scene_to_local(scene_pt)
-            self.ovL.paint_disk(lpt, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+            # 좌측: view → scene → overlay_local
+            l_scene = self.left.mapToScene(view_pos)
+            try:
+                l_local = self.ovL.overlay_item.mapFromScene(l_scene)
+            except Exception:
+                l_local = self.ovL.scene_to_local(l_scene)
+            
+            # 좌측에 라벨 표시
+            self.ovL._is_left = True
+            self.ovL.paint_disk(l_local, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
             # 좌 -> 우 정규화 매핑
             szL = self.ovL.base_size
             szR = self.ovR.base_size
             if szL and szR:
-                lx, ly = lpt.x(), lpt.y()
+                lx, ly = l_local.x(), l_local.y()
                 rx = int(round(lx * (szR[0]/float(szL[0]))))
                 ry = int(round(ly * (szR[1]/float(szL[1]))))
-                self.ovR.paint_disk(QtCore.QPoint(rx, ry), self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+                r_local = QtCore.QPoint(rx, ry)
+                self.ovR._is_left = False
+                self.ovR.paint_disk(r_local, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
             # === 같은 RGB값 하이라이트 (좌측 픽셀의 RGB 기준으로 우측에 표시) ===
-            rgb = self._color_at_left(lpt.x(), lpt.y())
+            rgb = self._color_at_left(int(l_local.x()), int(l_local.y()))
             if rgb is not None:
                 mask = self._make_match_mask_on_right(rgb, MATCH_TOL)
                 if mask is not None:
                     self.ovR.show_match_hint(mask, MATCH_HINT_COLOR)
 
         else:
-            # 우측 라벨 페인트 + 좌측 동기
-            scene_pt = self.right.mapToScene(view_pos)
-            rpt = self.ovR.scene_to_local(scene_pt)
-            self.ovR.paint_disk(rpt, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+            # 우측: view → scene → overlay_local
+            r_scene = self.right.mapToScene(view_pos)
+            try:
+                r_local = self.ovR.overlay_item.mapFromScene(r_scene)
+            except Exception:
+                r_local = self.ovR.scene_to_local(r_scene)
+            
+            # 우측에 라벨 표시
+            self.ovR._is_left = False
+            self.ovR.paint_disk(r_local, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
             # 우 -> 좌 정규화 매핑
             szL = self.ovL.base_size
             szR = self.ovR.base_size
             if szL and szR:
-                rx, ry = rpt.x(), rpt.y()
+                rx, ry = r_local.x(), r_local.y()
                 lx = int(round(rx * (szL[0]/float(szR[0]))))
                 ly = int(round(ry * (szL[1]/float(szR[1]))))
-                self.ovL.paint_disk(QtCore.QPoint(lx, ly), self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
+                l_local = QtCore.QPoint(lx, ly)
+                self.ovL._is_left = True
+                self.ovL.paint_disk(l_local, self.radius, LABEL_COLORS.get(label_idx, color), label_idx)
 
             # (옵션) 우측에서 찍은 RGB를 기준으로도 하이라이트 가능
             rb = self._right_base_rgb()
-            if rb is not None and 0 <= rpt.y() < rb.shape[0] and 0 <= rpt.x() < rb.shape[1]:
-                rgb = rb[rpt.y(), rpt.x()].copy()
+            if rb is not None and 0 <= int(r_local.y()) < rb.shape[0] and 0 <= int(r_local.x()) < rb.shape[1]:
+                rgb = rb[int(r_local.y()), int(r_local.x())].copy()
                 mask = self._make_match_mask_on_right(rgb, MATCH_TOL)
                 if mask is not None:
                     self.ovR.show_match_hint(mask, MATCH_HINT_COLOR)
+        
+        # ---- 디버그 (임시) ----
+        if self.ovL.mask_idx is not None:
+            print(f"[PAINT] L uniq={np.unique(self.ovL.mask_idx).tolist()}")
+        if self.ovR.mask_idx is not None:
+            print(f"[PAINT] R uniq={np.unique(self.ovR.mask_idx).tolist()}")
         
         # 칠한 즉시 실시간 상태 갱신
         self._update_live()
