@@ -552,9 +552,9 @@ class LinkedDualPainter(QtCore.QObject):
             labelsR.discard(0)  # 0 제거
             print(f"[CHK] right mask is None, using fallback, labels(no0)={labelsR}")
 
-        # ✅ 배경만({LABEL_BACKGROUND})이거나 라벨 없음(∅)이면 스킵
-        if (not labelsR) or (labelsR <= {LABEL_BACKGROUND}):
-            print(f"[SKIP] right is background-only (or no labels). labelsR={labelsR}, LABEL_BACKGROUND={LABEL_BACKGROUND}")
+        # ✅ 변경: 라벨이 '전혀 없을 때'만 스킵. background-only는 저장 허용.
+        if not labelsR:
+            print(f"[SKIP] right has no labels -> skip. labelsR={labelsR}")
             # 하이라이트/라이브 상태는 정리/유지
             self.ovR.clear_hint()
             self._update_live()
