@@ -125,9 +125,8 @@ class OverlayMask:
 
     def ensure_from_base(self) -> bool:
         """기저 픽스맵 크기에 맞춰 qimage/mask를 보장."""
-        # 씬/오버레이 바인딩부터 재확인
         self._ensure_binding()
-        base = self._find_base_pixmap_item()
+        base = self._find_base()
         if base is None:
             return False
         try:
@@ -143,14 +142,19 @@ class OverlayMask:
             self.qimage.height() != pm.height()
         )
         if need_new:
-            self.qimage = QtGui.QImage(pm.width(), pm.height(), QtGui.QImage.Format_ARGB32_Premultiplied)
+            w, h = pm.width(), pm.height()
+            # 라벨 QImage
+            self.qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
             self.qimage.fill(Qt.transparent)
-            self.mask_idx = np.zeros((pm.height(), pm.width()), dtype=np.uint8)
-            # overlay_item이 유효한지 한 번 더 보장
-            self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+            # 힌트 QImage
+            self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
+            self.hint_qimage.fill(Qt.transparent)
+            self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
+            # 라벨맵
+            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
 
-        # base rect 갱신(좌표 변환용)
+        # 좌표 변환용 SceneRect
         try:
             self._base_rect = base.sceneBoundingRect()
         except Exception:
