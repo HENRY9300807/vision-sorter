@@ -709,10 +709,10 @@ class PhotoViewer(QtWidgets.QDialog):
         }
         def label_selector():
             if self.defect.isChecked():
-                return 3, self._label_color[3]
+                return LABEL_DEFECT, LABEL_COLORS[LABEL_DEFECT]
             if self.background.isChecked():
-                return 2, self._label_color[2]
-            return 1, self._label_color[1]  # product 기본
+                return LABEL_BACKGROUND, LABEL_COLORS[LABEL_BACKGROUND]
+            return LABEL_PRODUCT, LABEL_COLORS[LABEL_PRODUCT]  # product 기본
 
         # 두 QGraphicsView (objectName 기준)
         left_view = self.real_photo
