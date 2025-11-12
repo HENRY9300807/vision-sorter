@@ -493,6 +493,13 @@ class LinkedDualPainter(QtCore.QObject):
 
     # ---------- 이벤트 처리 ----------
     def eventFilter(self, obj, ev):
+        # ✅ 안전 가드: 뷰가 삭제되었는지 확인
+        try:
+            if _is_deleted(self.left) or _is_deleted(self.right):
+                return False
+        except Exception:
+            return False
+        
         if self._in_reset:
             return False
         try:
