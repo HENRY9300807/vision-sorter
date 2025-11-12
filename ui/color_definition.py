@@ -422,17 +422,28 @@ class LinkedDualPainter(QtCore.QObject):
             print(f"[WARN] paint error: {e}")
         return False
 
-    # ---------- 유틸 ----------
+    # ---------- next/clear/save ----------
+    def _queue_reset(self):
+        """next 버튼 클릭 시 큐에 밀어서 안전하게 초기화"""
+        self._in_reset = True
+        QtCore.QTimer.singleShot(0, self._do_reset)
+
+    def _do_reset(self):
+        """씬/오버레이 최신 상태로 다시 묶고 모두 지움"""
+        self.ovL.ensure_from_base()
+        self.ovR.ensure_from_base()
+        self.ovL.clear_all()
+        self.ovR.clear_all()
+        self._in_reset = False
+
     def clear_both(self):
-        self.ovL.clear()
-        self.ovR.clear()
+        """양쪽 오버레이 모두 초기화"""
+        self.ovL.clear_all()
+        self.ovR.clear_all()
 
-    def on_next(self):
-        # 다른 슬롯(이미지 교체)이 끝난 뒤 초기화되도록 다음 틱에 실행
-        QtCore.QTimer.singleShot(0, self.clear_both)
-
-    def save_masks(self):
-        """두 마스크를 PNG/NPY로 저장(라벨 인덱스: 0=none, 1=product, 2=background, 3=defect)."""
+    def save_masks_and_recolor_right(self):
+        """두 라벨맵 저장 + 오른쪽 픽셀 뷰를 라벨 색으로 재도색 (product=초록, background=파랑)."""
+        # 저장
         if self.ovL.mask_idx is None or self.ovR.mask_idx is None:
             print("[INFO] 저장할 마스크가 없습니다.")
             return
@@ -440,13 +451,17 @@ class LinkedDualPainter(QtCore.QObject):
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # PNG (가시용) & NPY (학습/후처리용)
         cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
         cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
         np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
         np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
 
-        print(f"[SAVED] {out_dir} 에 마스크 저장 완료: left/right_mask_{ts}.*")
+        print(f"[SAVED] {out_dir} / *_mask_{ts}.*")
+
+        # 오른쪽을 라벨 색으로 "바로" 재색칠(기능 복원)
+        self.ovR.recolor_from_labelmap(LABEL_COLORS)
+        # 하이라이트는 저장 후 지워주는 편이 깔끔
+        self.ovR.clear_hint()
 
 
 class SynchronizedZoomer:
