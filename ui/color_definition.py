@@ -1,6 +1,6 @@
 from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
-from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView, QGraphicsPixmapItem
+from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QMessageBox
 from PyQt5.QtGui import QTransform
 from PyQt5.QtCore import Qt, QPointF, QEvent
 import cv2
