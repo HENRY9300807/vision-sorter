@@ -491,22 +491,45 @@ class LinkedDualPainter(QtCore.QObject):
             return arr[y, x].copy()   # shape (3,)
         return None
 
-    def _paint_one(self, view: QGraphicsView, ov, view_pos: QtCore.QPoint):
+    def _paint_from_view(self, side: str, view_pos: QtCore.QPoint):
         """한 뷰에서 페인트"""
-        if not ov.ensure_from_base():
-            return
-        label_id, color = self.label_selector()   # 1/2/3 반환
+        ov = self.ovL if side == 'L' else self.ovR
+        if ov is None or not ov.ensure_from_base():
+            return  # 준비 안 됨
+
+        # 같은 라벨로 두쪽 동기 칠하기(원하면 한쪽만)
+        label_id, color = self.label_selector()
+        
+        # 뷰→씬→아이템 로컬 좌표
+        view = self.left if side == 'L' else self.right
         scene_pt = view.mapToScene(view_pos)
+        
         try:
-            local_pt = ov.overlay_item.mapFromScene(scene_pt)  # 오버레이 로컬 좌표로 변환
+            if ov._pm_item is not None:
+                local_pt = ov._pm_item.mapFromScene(scene_pt)
+            else:
+                local_pt = ov.scene_to_local(scene_pt)
         except Exception:
-            # 폴백: scene_to_local 사용
             local_pt = ov.scene_to_local(scene_pt)
-        ov.paint_disk(local_pt, self.radius, color, label_id)
+        
+        # 로컬을 정수 픽셀로
+        if ov.mask_idx is not None:
+            x = int(np.clip(local_pt.x(), 0, ov.mask_idx.shape[1] - 1))
+            y = int(np.clip(local_pt.y(), 0, ov.mask_idx.shape[0] - 1))
+            ov.paint_disk(QtCore.QPoint(x, y), self.radius, LABEL_COLORS.get(label_id, color), label_id)
+
+            # 반대편에도 정규화 매핑으로 동기(옵션)
+            other = self.ovR if side == 'L' else self.ovL
+            if other is not None and other.ensure_from_base():
+                nx = x / ov.mask_idx.shape[1]
+                ny = y / ov.mask_idx.shape[0]
+                ox = int(nx * other.mask_idx.shape[1])
+                oy = int(ny * other.mask_idx.shape[0])
+                other.paint_disk(QtCore.QPoint(ox, oy), self.radius, LABEL_COLORS.get(label_id, color), label_id)
         
         # 디버그(임시)
         if ov.mask_idx is not None:
-            print(f"[PAINT] {'L' if ov is self.ovL else 'R'} uniq={np.unique(ov.mask_idx).tolist()}")
+            print(f"[PAINT] {'L' if side == 'L' else 'R'} uniq={np.unique(ov.mask_idx).tolist()}")
         
         # 칠한 즉시 실시간 상태 갱신
         self._update_live()
