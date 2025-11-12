@@ -239,44 +239,47 @@ class OverlayMask:
         if not self.ensure_from_base():
             return
         
-        if self.qimage is None or self.mask_idx is None:
-            return
-        h, w = self.mask_idx.shape
-        if not (0 <= local_pt.x() < w and 0 <= local_pt.y() < h):
-            return
-
         # ✅ 라벨 ID 검증 (디버그용)
         if label_idx <= 0:
             print(f"[WARN] paint_disk: invalid label_idx={label_idx}, must be > 0")
             return
 
-        # 1) 시각 오버레이
-        try:
-            p = QtGui.QPainter(self.qimage)
-            p.setRenderHint(QtGui.QPainter.Antialiasing, True)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QtGui.QBrush(color))
-            p.drawEllipse(local_pt, radius, radius)
-            p.end()
-            self._ensure_binding()
-            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
-        except Exception as e:
-            print(f"[WARN] paint_disk overlay error: {e}")
-            # 오버레이 실패해도 마스크는 기록해야 함
+        # --- 1) 오버레이(시각) ---
+        if self.qimage is None:
+            try:
+                pm = self.overlay_item.pixmap()
+                if not pm.isNull():
+                    self.qimage = QtGui.QImage(pm.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
+                    self.qimage.fill(Qt.transparent)
+            except Exception:
+                pass
+        
+        if self.qimage is not None:
+            try:
+                p = QtGui.QPainter(self.qimage)
+                p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QtGui.QBrush(color))
+                p.drawEllipse(local_pt, radius, radius)
+                p.end()
+                self._ensure_binding()
+                self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+            except Exception as e:
+                print(f"[WARN] paint_disk overlay error: {e}")
 
-        # 2) ✅ 마스크 배열(수치) 기록 — 반드시 1/2/3 등 양수 라벨
-        try:
-            cx, cy = int(local_pt.x()), int(local_pt.y())
-            cv2.circle(self.mask_idx, (cx, cy), int(radius), int(label_idx), thickness=-1)
-        except Exception as e:
-            print(f"[WARN] paint_disk mask error: {e}")
+        # --- 2) 라벨맵(수치) ---
+        self._ensure_mask()
+        if self.mask_idx is None:
             return
         
-        # 디버그: 실제 라벨 기록 확인 (일시적으로 활성화)
-        vals, cnt = np.unique(self.mask_idx, return_counts=True)
-        non_zero = [v for v in vals if v > 0]
-        if non_zero:
-            print(f"[PAINT] mask labels={non_zero} (total unique={len(vals)})")
+        x, y = int(round(local_pt.x())), int(round(local_pt.y()))
+        h, w = self.mask_idx.shape
+        if 0 <= x < w and 0 <= y < h:
+            cv2.circle(self.mask_idx, (x, y), int(radius), int(label_idx), thickness=-1)
+        
+        # ---- 디버그 (임시) ----
+        vals = np.unique(self.mask_idx).tolist()
+        print(f"[PAINT] {'L' if hasattr(self, '_is_left') and self._is_left else 'R'} uniq={vals}")
 
     def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
         """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
