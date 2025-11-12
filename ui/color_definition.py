@@ -19,96 +19,248 @@ from package.operation import (
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
 
 
-class SafeViewPainter(QtCore.QObject):
+class OverlayMask:
     """
-    QGraphicsView.viewport()에 이벤트 필터를 달아 좌클릭 드래그로 점(브러시)을 찍는다.
-    - scene()/pixmap 유무 점검 → 없으면 조용히 무시(튕김 방지)
-    - 확대/축소/스크롤과 호환(mapToScene 사용)
+    각 QGraphicsView 위에 반투명 오버레이(QImage) + 정수 라벨마스크(np.ndarray)를 유지.
+    - view.scene()의 '기저 픽스맵' 크기에 맞춰 자동 리크리에이트
+    - scene이 교체돼도 overlay_item을 재부착하여 안전
     """
-    def __init__(self, root: QtWidgets.QWidget, view: QGraphicsView,
-                 color_selector, radius: int = 8, auto_clear_on_next: bool = True):
-        super().__init__(root)
+    def __init__(self, view: QGraphicsView):
         self.view = view
-        self.color_selector = color_selector
-        self.radius = max(1, int(radius))
-        self._items = []
-
-        # 씬 보장
         if self.view.scene() is None:
             self.view.setScene(QGraphicsScene(self.view))
+        self.overlay_item = QGraphicsPixmapItem()
+        self.overlay_item.setZValue(1000)
+        self._base_rect = None
+        self.qimage = None               # ARGB32
+        self.mask_idx = None             # (H,W) uint8
+        # 처음 부착
+        self._ensure_binding()
 
-        # 품질/기준점 설정
-        self.view.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
-        self.view.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
-        self.view.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+    def _ensure_binding(self):
+        # overlay_item이 현재 scene에 없으면 부착
+        if self.overlay_item.scene() is not self.view.scene():
+            if self.overlay_item.scene() is not None:
+                try:
+                    self.overlay_item.scene().removeItem(self.overlay_item)
+                except Exception:
+                    pass
+            if self.view.scene() is not None:
+                self.view.scene().addItem(self.overlay_item)
 
-        # viewport에 필터 장착(중요)
-        self.view.viewport().installEventFilter(self)
+    def _find_base_pixmap_item(self):
+        sc = self.view.scene()
+        if not sc:
+            return None
+        # overlay_item 외의 가장 큰 PixmapItem을 '기저'로 간주
+        base = None
+        area = -1
+        for it in sc.items():
+            if isinstance(it, QGraphicsPixmapItem) and it is not self.overlay_item:
+                pm = it.pixmap()
+                a = pm.width() * pm.height()
+                if a > area and not pm.isNull():
+                    base, area = it, a
+        return base
 
-        # 다음 이미지로 넘어갈 때 자동 초기화(옵션)
-        if auto_clear_on_next:
-            nb = root.findChild(QtWidgets.QPushButton, "nextButton")
-            if nb:
-                nb.clicked.connect(self.clear)
+    def ensure_from_base(self) -> bool:
+        """기저 픽스맵 크기에 맞춰 qimage/mask를 보장."""
+        self._ensure_binding()
+        base = self._find_base_pixmap_item()
+        if base is None or base.pixmap().isNull():
+            return False
+
+        pm = base.pixmap()
+        need_new = (
+            self.qimage is None or
+            self.qimage.width() != pm.width() or
+            self.qimage.height() != pm.height()
+        )
+        if need_new:
+            self.qimage = QtGui.QImage(pm.width(), pm.height(), QtGui.QImage.Format_ARGB32_Premultiplied)
+            self.qimage.fill(Qt.transparent)
+            self.mask_idx = np.zeros((pm.height(), pm.width()), dtype=np.uint8)
+            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        self._base_rect = base.sceneBoundingRect()
+        return True
+
+    @property
+    def base_size(self):
+        if self.qimage is None:
+            return None
+        return (self.qimage.width(), self.qimage.height())
+
+    def scene_to_local(self, scene_pos: QPointF) -> QtCore.QPoint:
+        """씬 좌표 → 기저 픽스맵 로컬 픽셀 좌표."""
+        if self._base_rect is None:
+            return QtCore.QPoint(-1, -1)
+        x = int(scene_pos.x() - self._base_rect.left())
+        y = int(scene_pos.y() - self._base_rect.top())
+        return QtCore.QPoint(x, y)
+
+    def paint_dot(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
+        """보이기용 qimage와 정수 마스크를 동시에 갱신."""
+        if self.qimage is None or self.mask_idx is None:
+            return
+        h, w = self.mask_idx.shape
+        if not (0 <= local_pt.x() < w and 0 <= local_pt.y() < h):
+            return
+
+        # 1) 시각용(반투명)
+        painter = QtGui.QPainter(self.qimage)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QtGui.QBrush(color))
+        painter.drawEllipse(local_pt, radius, radius)
+        painter.end()
+        self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+
+        # 2) 라벨맵(정수)
+        cv2.circle(self.mask_idx, (local_pt.x(), local_pt.y()), int(radius), int(label_idx), thickness=-1)
 
     def clear(self):
-        sc = self.view.scene()
-        if not sc:
-            self._items.clear()
+        if self.qimage is not None:
+            self.qimage.fill(Qt.transparent)
+            self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
+        if self.mask_idx is not None:
+            self.mask_idx[:] = 0
+
+
+class LinkedDualPainter(QtCore.QObject):
+    """
+    좌/우 두 뷰가 서로 '정규화 좌표'로 동기화 페인팅:
+    - 한쪽에 칠하면 다른 쪽에도 동일 위치로 즉시 반영
+    - 저장 시 두 마스크를 PNG/NPY로 기록
+    """
+    def __init__(self, root: QtWidgets.QWidget, left: QGraphicsView, right: QGraphicsView,
+                 label_selector, radius: int = 8):
+        super().__init__(root)
+        self.root = root
+        self.left = left
+        self.right = right
+        self.ovL = OverlayMask(left)
+        self.ovR = OverlayMask(right)
+        self.label_selector = label_selector
+        self.radius = max(1, int(radius))
+        self._painting = False
+
+        # 이벤트 필터는 viewport에 단다(정확한 마우스 좌표 확보)
+        self.left.viewport().installEventFilter(self)
+        self.right.viewport().installEventFilter(self)
+
+        # 보기 품질/앵커
+        for v in (self.left, self.right):
+            v.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
+            v.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
+            v.setResizeAnchor(QGraphicsView.AnchorViewCenter)
+
+        # 버튼 연결
+        nb = root.findChild(QtWidgets.QPushButton, "nextButton")
+        if nb:
+            nb.clicked.connect(self.on_next)   # 다음에서 안전 초기화
+        clr = root.findChild(QtWidgets.QPushButton, "clearDataButton")
+        if clr:
+            clr.clicked.connect(self.clear_both)
+        sv = root.findChild(QtWidgets.QPushButton, "saveButton")
+        if sv:
+            sv.clicked.connect(self.save_masks)
+
+    # ---------- 좌표 변환/칠하기 ----------
+    def _norm_from_local(self, ov: OverlayMask, pt: QtCore.QPoint):
+        """해당 오버레이의 로컬 좌표 → (nx, ny) 정규화 [0~1]."""
+        size = ov.base_size
+        if size is None:
+            return None
+        w, h = size
+        if not w or not h or w <= 0 or h <= 0:
+            return None
+        nx = np.clip(pt.x() / w, 0.0, 1.0)
+        ny = np.clip(pt.y() / h, 0.0, 1.0)
+        return (nx, ny)
+
+    def _local_from_norm(self, ov: OverlayMask, nx: float, ny: float):
+        """정규화 좌표 → 해당 오버레이의 로컬 픽셀 좌표."""
+        size = ov.base_size
+        if size is None:
+            return None
+        w, h = size
+        if not w or not h:
+            return None
+        x = int(round(nx * w))
+        y = int(round(ny * h))
+        return QtCore.QPoint(x, y)
+
+    def _paint_pair(self, src_view: QGraphicsView, view_pos: QtCore.QPoint):
+        # 준비(기저 픽스맵 크기 보장)
+        if not (self.ovL.ensure_from_base() and self.ovR.ensure_from_base()):
             return
-        # 목록을 먼저 복사해두고, 내부 리스트는 즉시 비움(중복 remove 방지)
-        items = list(self._items)
-        self._items.clear()
-        for it in items:
-            try:
-                if it is None or sip.isdeleted(it):
-                    continue
-                # 아이템이 아직 어떤 scene에 붙어 있으면 그 scene에서 제거
-                owner = it.scene()
-                if owner is not None:
-                    owner.removeItem(it)
-            except Exception:
-                pass
+        label_idx, color = self.label_selector()
 
-    def _has_any_pixmap(self) -> bool:
-        sc = self.view.scene()
-        if not sc:
-            return False
-        # 장면의 첫 번째 PixmapItem 유무만 확인 (없으면 그리지 않음)
-        for it in sc.items():
-            if isinstance(it, QGraphicsPixmapItem):
-                return True
-        return False
+        # 1) 소스 쪽 좌표
+        src_ov = self.ovL if src_view is self.left else self.ovR
+        trg_ov = self.ovR if src_view is self.left else self.ovL
 
-    def _draw_dot(self, pos):
-        if not self._has_any_pixmap():
+        scene_pos = src_view.mapToScene(view_pos)
+        local_src = src_ov.scene_to_local(scene_pos)
+        norm = self._norm_from_local(src_ov, local_src)
+        if norm is None:
             return
-        scene_pt = self.view.mapToScene(pos)
-        r = self.radius
-        color = self.color_selector()
-        pen = QtGui.QPen(color)
-        pen.setWidth(0)
-        brush = QtGui.QBrush(color)
-        item = self.view.scene().addEllipse(scene_pt.x()-r, scene_pt.y()-r, 2*r, 2*r, pen, brush)
-        item.setZValue(10)
-        self._items.append(item)
 
-    def eventFilter(self, obj, event):
-        if obj is not self.view.viewport():
-            return False
+        # 2) 소스에 칠하기
+        src_ov.paint_dot(local_src, self.radius, color, label_idx)
+
+        # 3) 정규화 좌표로 상대편에도 동기 칠하기
+        local_trg = self._local_from_norm(trg_ov, *norm)
+        if local_trg is not None:
+            trg_ov.paint_dot(local_trg, self.radius, color, label_idx)
+
+    # ---------- 이벤트 처리 ----------
+    def eventFilter(self, obj, ev):
         try:
-            if event.type() == QEvent.MouseButtonPress and event.buttons() & Qt.LeftButton:
-                self._draw_dot(event.pos())
+            is_left = (obj is self.left.viewport())
+            is_right = (obj is self.right.viewport())
+            if not (is_left or is_right):
+                return False
+
+            if ev.type() == QEvent.MouseButtonPress and ev.buttons() & Qt.LeftButton:
+                self._painting = True
+                self._paint_pair(self.left if is_left else self.right, ev.pos())
                 return True
-            elif event.type() == QEvent.MouseMove and event.buttons() & Qt.LeftButton:
-                self._draw_dot(event.pos())
+            elif ev.type() == QEvent.MouseMove and self._painting and ev.buttons() & Qt.LeftButton:
+                self._paint_pair(self.left if is_left else self.right, ev.pos())
                 return True
-            elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            elif ev.type() == QEvent.MouseButtonRelease and ev.button() == Qt.LeftButton:
+                self._painting = False
                 return True
         except Exception as e:
-            # 콘솔에만 경고 출력(앱 종료 방지)
             print(f"[WARN] paint error: {e}")
         return False
+
+    # ---------- 유틸 ----------
+    def clear_both(self):
+        self.ovL.clear()
+        self.ovR.clear()
+
+    def on_next(self):
+        # 다른 슬롯(이미지 교체)이 끝난 뒤 초기화되도록 다음 틱에 실행
+        QtCore.QTimer.singleShot(0, self.clear_both)
+
+    def save_masks(self):
+        """두 마스크를 PNG/NPY로 저장(라벨 인덱스: 0=none, 1=product, 2=background, 3=defect)."""
+        if self.ovL.mask_idx is None or self.ovR.mask_idx is None:
+            print("[INFO] 저장할 마스크가 없습니다.")
+            return
+        out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "labels")
+        os.makedirs(out_dir, exist_ok=True)
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # PNG (가시용) & NPY (학습/후처리용)
+        cv2.imwrite(os.path.join(out_dir, f"left_mask_{ts}.png"), self.ovL.mask_idx)
+        cv2.imwrite(os.path.join(out_dir, f"right_mask_{ts}.png"), self.ovR.mask_idx)
+        np.save(os.path.join(out_dir, f"left_mask_{ts}.npy"), self.ovL.mask_idx)
+        np.save(os.path.join(out_dir, f"right_mask_{ts}.npy"), self.ovR.mask_idx)
+
+        print(f"[SAVED] {out_dir} 에 마스크 저장 완료: left/right_mask_{ts}.*")
 
 
 class SynchronizedZoomer:
