@@ -219,6 +219,20 @@ class OverlayMask:
         y = int(scene_pos.y() - self._base_rect.top())
         return QtCore.QPoint(x, y)
 
+    def _ensure_mask(self):
+        """overlay pixmap 크기에 맞춰 mask_idx(np.uint8, HxW)를 항상 준비"""
+        if self.overlay_item is None:
+            return
+        try:
+            pm = self.overlay_item.pixmap()
+        except Exception:
+            return
+        if pm.isNull():
+            return
+        w, h = pm.width(), pm.height()
+        if (self.mask_idx is None) or (self.mask_idx.shape != (h, w)):
+            self.mask_idx = np.zeros((h, w), dtype=np.uint8)
+
     def paint_disk(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
         """라벨 그리기(마스크도 함께)."""
         # 항상 마스크/오버레이 준비 보장
