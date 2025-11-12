@@ -92,12 +92,18 @@ class OverlayMask:
 
     def ensure_from_base(self) -> bool:
         """기저 픽스맵 크기에 맞춰 qimage/mask를 보장."""
+        # 씬/오버레이 바인딩부터 재확인
         self._ensure_binding()
         base = self._find_base_pixmap_item()
-        if base is None or base.pixmap().isNull():
+        if base is None:
+            return False
+        try:
+            pm = base.pixmap()
+        except Exception:
+            return False
+        if pm.isNull():
             return False
 
-        pm = base.pixmap()
         need_new = (
             self.qimage is None or
             self.qimage.width() != pm.width() or
@@ -107,8 +113,15 @@ class OverlayMask:
             self.qimage = QtGui.QImage(pm.width(), pm.height(), QtGui.QImage.Format_ARGB32_Premultiplied)
             self.qimage.fill(Qt.transparent)
             self.mask_idx = np.zeros((pm.height(), pm.width()), dtype=np.uint8)
+            # overlay_item이 유효한지 한 번 더 보장
+            self._ensure_binding()
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
-        self._base_rect = base.sceneBoundingRect()
+
+        # base rect 갱신(좌표 변환용)
+        try:
+            self._base_rect = base.sceneBoundingRect()
+        except Exception:
+            return False
         return True
 
     @property
