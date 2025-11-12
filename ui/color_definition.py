@@ -35,8 +35,8 @@ class SynchronizedZoomer:
             if v.scene() is None:
                 v.setScene(QGraphicsScene(v))
 
-        # 시작 시 한 번 맞춰두면 좋다
-        self.reset_zoom_to_fit()
+        # 시작 시 한 번 맞춰두면 좋다 (이미지가 있는 경우에만)
+        # 초기화 시점에는 이미지가 없을 수 있으므로 show_photo에서 처리
 
     def _fit_one(self, v: QGraphicsView):
         sc = v.scene()
