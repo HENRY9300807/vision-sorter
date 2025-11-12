@@ -974,6 +974,11 @@ class PhotoViewer(QtWidgets.QDialog):
         """Save 버튼 클릭 → 마스크 저장"""
         print("[UI] save clicked")
         if hasattr(self, 'linked_painter'):
+            # RGB 정의 갱신 먼저(좌/우 아무 쪽이나 라벨 있으면 반영됨)
+            try:
+                self.linked_painter._save_color_defs()
+            except Exception as e:
+                print(f"[WARN] color defs save error: {e}")
             self.linked_painter.save_masks_and_recolor_right()
         else:
             print("[WARN] linked_painter not found")
