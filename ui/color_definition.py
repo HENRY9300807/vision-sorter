@@ -902,6 +902,9 @@ class PhotoViewer(QtWidgets.QDialog):
 
         # 동기 페인터 장착: 좌↔우 상호 연동 + 저장 버튼 연결 + next 안전 초기화
         self.linked_painter = LinkedDualPainter(self, left_view, right_view, label_selector, radius=10)
+        
+        # ✅ 앱 로드가 끝나 '이미지/픽스맵'이 붙을 때까지 잠시 대기 후 ARM
+        QtCore.QTimer.singleShot(0, self.linked_painter.arm_when_ready)
 
         # 드로잉 관련(왼쪽에서만 드래그 - 기존 RGB 수집 로직)
         self.drawing = False
