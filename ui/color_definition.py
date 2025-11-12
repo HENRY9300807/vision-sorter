@@ -156,10 +156,11 @@ class OverlayMask:
 
     def ensure_from_base(self) -> bool:
         """overlay/basemap 크기에 맞춰 mask_idx(0)와 qimage를 항상 준비"""
-        # base 픽스맵 얻기
         sc = self.view.scene()
         if not sc:
             return False
+
+        # 가장 큰 QGraphicsPixmapItem 찾기
         base = None
         area = -1
         for it in sc.items():
@@ -176,6 +177,7 @@ class OverlayMask:
         if base is None:
             return False
 
+        self._pm_item = base
         try:
             pm = base.pixmap()
         except Exception:
@@ -184,13 +186,12 @@ class OverlayMask:
             return False
         w, h = pm.width(), pm.height()
 
-        # 오버레이 QImage 보장
-        if getattr(self, "qimage", None) is None or self.qimage.size() != pm.size():
+        # 오버레이 버퍼/아이템 보장
+        if self.qimage is None or self.qimage.width() != w or self.qimage.height() != h:
             self.qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
-            self.qimage.fill(Qt.transparent)
-
-        # 오버레이 Item 보장
-        if getattr(self, "overlay_item", None) is None:
+            self.qimage.fill(QtCore.Qt.transparent)
+        
+        if self.overlay_item is None or (sip is not None and sip.isdeleted(self.overlay_item)):
             self.overlay_item = QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.qimage))
             self.overlay_item.setZValue(1000)
             sc.addItem(self.overlay_item)
@@ -198,19 +199,19 @@ class OverlayMask:
             self.overlay_item.setPixmap(QtGui.QPixmap.fromImage(self.qimage))
 
         # 힌트 QImage 보장
-        if getattr(self, "hint_item", None) is None:
+        if self.hint_qimage is None or self.hint_qimage.width() != w or self.hint_qimage.height() != h:
             self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
-            self.hint_qimage.fill(Qt.transparent)
+            self.hint_qimage.fill(QtCore.Qt.transparent)
+        
+        if self.hint_item is None or (sip is not None and sip.isdeleted(self.hint_item)):
             self.hint_item = QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.hint_qimage))
             self.hint_item.setZValue(1001)
             sc.addItem(self.hint_item)
-        elif getattr(self, "hint_qimage", None) is None or self.hint_qimage.size() != pm.size():
-            self.hint_qimage = QtGui.QImage(w, h, QtGui.QImage.Format_ARGB32_Premultiplied)
-            self.hint_qimage.fill(Qt.transparent)
+        else:
             self.hint_item.setPixmap(QtGui.QPixmap.fromImage(self.hint_qimage))
 
-        # 마스크 보장 (0=미지정)
-        if getattr(self, "mask_idx", None) is None or self.mask_idx.shape != (h, w):
+        # 라벨맵 보장(0=미지정)
+        if self.mask_idx is None or self.mask_idx.shape != (h, w):
             self.mask_idx = np.zeros((h, w), dtype=np.uint8)
 
         # 베이스 위치 캐시(좌표 변환용)
