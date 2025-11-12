@@ -297,9 +297,11 @@ class PhotoViewer(QtWidgets.QDialog):
         # 오른쪽: 분류 결과
         self.update_pixel_view()
         
-        # 이미지 업데이트 후 줌 리셋 (원배율로 표시)
-        # nextButton 클릭 시 또는 초기 로드 시에만 리셋되도록 함
-        QtCore.QTimer.singleShot(10, self.reset_zoom_to_fit)
+        # 이미지 업데이트 후 줌 리셋은 _on_next_safely에서 처리
+        # 초기 로드 시에만 리셋
+        if not hasattr(self, '_initial_load_done'):
+            QtCore.QTimer.singleShot(10, self.reset_zoom_to_fit)
+            self._initial_load_done = True
 
     def _on_next_safely(self):
         """nextButton 클릭 시 안전하게 처리: 페인터 clear 후 다음 틱에서 줌 리셋"""
