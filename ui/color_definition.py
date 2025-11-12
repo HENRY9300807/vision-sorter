@@ -50,9 +50,10 @@ from package.save_manager import SessionSaver, RealTimeExporter
 
 UI_FILE = Path(__file__).resolve().with_name("mainwindow.ui")
 
-# 라벨 상수 통일
+# ---- 라벨 상수 (여기 한 곳에서만 바꾼다) ----
+# 배경이 '빨강'이든 '파랑'이든 상관없음, 숫자만 맞추면 됨
 LABEL_PRODUCT = 1
-LABEL_BACKGROUND = 2
+LABEL_BACKGROUND = 2   # ← 배경 라벨 ID (마스크에 찍히는 숫자와 일치해야 함)
 LABEL_DEFECT = 3
 
 # 라벨 색 (오른쪽 픽셀 뷰 재색칠에 사용)
