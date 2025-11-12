@@ -221,6 +221,10 @@ class OverlayMask:
 
     def paint_disk(self, local_pt: QtCore.QPoint, radius: int, color: QtGui.QColor, label_idx: int):
         """라벨 그리기(마스크도 함께)."""
+        # 항상 마스크/오버레이 준비 보장
+        if not self.ensure_from_base():
+            return
+        
         if self.qimage is None or self.mask_idx is None:
             return
         h, w = self.mask_idx.shape
@@ -232,7 +236,7 @@ class OverlayMask:
             print(f"[WARN] paint_disk: invalid label_idx={label_idx}, must be > 0")
             return
 
-        # 라벨 오버레이
+        # 1) 시각 오버레이
         try:
             p = QtGui.QPainter(self.qimage)
             p.setRenderHint(QtGui.QPainter.Antialiasing, True)
@@ -245,12 +249,13 @@ class OverlayMask:
         except Exception:
             return
 
-        # ✅ 라벨맵 기록 (반드시 1/2/3 등 >0 이 들어가야 함)
-        cv2.circle(self.mask_idx,
-                   (int(local_pt.x()), int(local_pt.y())),
-                   int(radius),
-                   int(label_idx),        # ← 반드시 1/2/3 등 >0 이 들어가야 함
-                   thickness=-1)
+        # 2) ✅ 마스크 배열(수치) 기록 — 반드시 1/2/3 등 양수 라벨
+        cx, cy = int(local_pt.x()), int(local_pt.y())
+        cv2.circle(self.mask_idx, (cx, cy), int(radius), int(label_idx), thickness=-1)
+        
+        # 디버그(선택적 - 필요시 주석 해제)
+        # vals, cnt = np.unique(self.mask_idx, return_counts=True)
+        # print(f"[PAINT] labels={vals.tolist()} counts={cnt.tolist()}")
 
     def show_match_hint(self, mask_bool: np.ndarray, color: QtGui.QColor = MATCH_HINT_COLOR):
         """mask_bool(H,W)==True인 위치를 색으로 칠해 힌트 레이어에 표시 (라벨맵에는 영향 없음)."""
