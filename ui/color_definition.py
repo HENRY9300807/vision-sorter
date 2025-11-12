@@ -434,6 +434,10 @@ class PhotoViewer(QtWidgets.QDialog):
 
     # -------------------------------
     def eventFilter(self, source, event):
+        # 페인터가 활성화되어 있으면 기존 드래그 로직은 건너뜀
+        if self.painter._painting:
+            return False
+        
         if source == self.real_photo.viewport():
             if event.type() == QtCore.QEvent.MouseButtonPress:
                 if event.button() == QtCore.Qt.LeftButton:
