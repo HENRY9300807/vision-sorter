@@ -1,0 +1,8 @@
+# 선택적 의존성 (github_bridge 등)
+# 설치: pip install -r requirements-optional.txt
+
+# GitHub Bridge 서버 (선택적)
+httpx>=0.24.0
+fastapi>=0.100.0
+PyJWT>=2.8.0
+

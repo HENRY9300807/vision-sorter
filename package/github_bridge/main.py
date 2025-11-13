@@ -1,11 +1,12 @@
 # github_bridge/main.py
+# pyright: reportMissingImports=none
 from __future__ import annotations
 import os, time, base64, json
 from typing import Optional, List, Dict, Any
-import httpx
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import PlainTextResponse, StreamingResponse
-import jwt  # PyJWT
+import httpx  # type: ignore
+from fastapi import FastAPI, HTTPException, Query  # type: ignore
+from fastapi.responses import PlainTextResponse, StreamingResponse  # type: ignore
+import jwt  # type: ignore # PyJWT
 
 GITHUB_API = "https://api.github.com"
 ACCEPT_JSON = {"Accept": "application/vnd.github+json"}
@@ -30,7 +31,7 @@ def _bearer_headers() -> Dict[str, str]:
     # 1) App JWT
     now = int(time.time())
     payload = {"iat": now - 60, "exp": now + 540, "iss": app_id}
-    app_jwt = jwt.encode(payload, app_key, algorithm="RS256")
+    app_jwt = jwt.encode(payload, app_key, algorithm="RS256")  # type: ignore
 
     # 2) Installation Access Token
     headers = {"Authorization": f"Bearer {app_jwt}", **ACCEPT_JSON}

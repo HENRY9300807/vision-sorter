@@ -10,7 +10,7 @@
         "**/node_modules",
         "**/picture",
         "**/data/labels",
-        "**/github_bridge"
+        "package/github_bridge/**"
     ],
     "venvPath": ".",
     "venv": ".venv",
@@ -19,6 +19,7 @@
     "typeCheckingMode": "basic",
     "reportMissingImports": "warning",
     "reportMissingTypeStubs": false,
-    "reportMissingModuleSource": false
+    "reportMissingModuleSource": false,
+    "reportUnusedImport": "none"
 }
 
