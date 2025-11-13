@@ -27,7 +27,10 @@ def _bearer_headers() -> Dict[str, str]:
     app_key = os.getenv("GITHUB_APP_PRIVATE_KEY_PEM")
     inst_id = os.getenv("GITHUB_INSTALLATION_ID")
     if not (app_id and app_key and inst_id):
-        raise RuntimeError("Set either GITHUB_TOKEN (PAT) or GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_PEM/GITHUB_INSTALLATION_ID")
+        raise HTTPException(
+            status_code=500,
+            detail="GitHub 인증 토큰이 설정되지 않았습니다. GITHUB_TOKEN 환경변수를 설정하거나 GitHub App 설정을 완료하세요. 자세한 내용은 package/github_bridge/README.md를 참조하세요."
+        )
 
     # 1) App JWT
     now = int(time.time())
