@@ -1,0 +1,28 @@
+[tool.ruff]
+# Ruff 설정 파일
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# 검사할 규칙 선택
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E402",  # module level import not at top of file (sometimes needed for path setup)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 특정 파일/디렉토리 무시
+"__init__.py" = ["F401"]  # unused imports
+"tests/*" = ["E501"]  # test files can have long lines
+
+[tool.ruff.format]
+# 포맷터 설정 (선택적)
+quote-style = "double"
+indent-style = "space"
+
