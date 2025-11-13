@@ -54,7 +54,7 @@ def configure_camera(camera: pylon.InstantCamera):
     #  assignees: your-github-id
     #  labels: calibration, vision
     #  milestone: MVP-v1
-    #  (본문) 체스보드 10장 이상 촬영 → 전역/행별 스케일 산출
+    #  (본문) 체스보드 10장 이상 촬영 → 전역/행별 스케일 
     camera.Open()
 
     # --- Binning ---
