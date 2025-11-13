@@ -1,0 +1,20 @@
+{
+    "include": [
+        "package",
+        "ui",
+        "main.py"
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/.venv",
+        "**/node_modules",
+        "**/picture",
+        "**/data/labels"
+    ],
+    "pythonVersion": "3.10",
+    "pythonPlatform": "Windows",
+    "typeCheckingMode": "basic",
+    "reportMissingImports": "warning",
+    "reportMissingTypeStubs": false
+}
+

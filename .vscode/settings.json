@@ -1,0 +1,9 @@
+{
+    "python.defaultInterpreterPath": "C:\\Users\\kn666\\AppData\\Local\\Programs\\Python\\Python310\\python.exe",
+    "python.analysis.extraPaths": [],
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "basedpyright.analysis.typeCheckingMode": "basic",
+    "basedpyright.analysis.autoImportCompletions": true
+}
+
