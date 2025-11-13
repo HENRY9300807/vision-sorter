@@ -1,0 +1,35 @@
+name: TODOs ↔ Issues (with links)
+
+on:
+  push:
+    branches: [ "main" ]              # 브랜치 지정 권장
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  todo-to-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TODO→Issue with URL insertion
+        uses: alstr/todo-to-issue-action@v5.1.13
+        with:
+          INSERT_ISSUE_URLS: "true"
+          CLOSE_ISSUES: "true"        # TODO가 제거되면 이슈 닫기(링크 삽입과 함께 쓰는 것이 정확도 ↑)
+      - name: Set Git user for committing inserted URLs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Commit and push changes (update TODOs with issue links)
+        run: |
+          git add -A
+          if [[ `git status --porcelain` ]]; then
+            git commit -m "chore: insert GitHub issue links into TODOs"
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "No changes to commit"
+          fi
+

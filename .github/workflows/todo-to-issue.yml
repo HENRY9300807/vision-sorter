@@ -1,0 +1,21 @@
+name: TODOs → GitHub Issues
+
+on:
+  push:
+    branches: [ "main", "develop" ]   # 필요에 맞게 조정
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  todo-to-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create/Update issues from TODO/FIXME
+        uses: alstr/todo-to-issue-action@v5.1.13
+        # v5 기본값만으로 동작. 아래 옵션은 필요 시 해제/추가
+        # with:
+        #   CLOSE_ISSUES: "false"   # URL 삽입 없이 true로 쓰면 오탐 가능성 ↑ (권장: 기본 false)
+
