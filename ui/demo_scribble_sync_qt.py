@@ -2,6 +2,13 @@
 
 import os
 import sys
+from pathlib import Path
+
+# 프로젝트 루트를 sys.path에 추가
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage
