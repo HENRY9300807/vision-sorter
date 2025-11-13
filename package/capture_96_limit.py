@@ -121,5 +121,5 @@ def main():
         camera.Close()
 
 
-if __name__ == "__main__":
+if __name__ == "__main_":
     main()
