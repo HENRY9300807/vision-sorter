@@ -126,7 +126,7 @@ class ScribbleView(QGraphicsView):
         super().mouseReleaseEvent(e)
 
     # ---------- API ----------
-    def set_brush(self, radius: int, color: QColor | None = None):
+    def set_brush(self, radius: int, color: Optional[QColor] = None):
         self.brush_radius = int(max(1, radius))
         if color is not None:
             self.brush_color = color
