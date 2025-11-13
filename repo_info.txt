@@ -1,0 +1,68 @@
+# GitHub Repository: HENRY9300807/vision-sorter
+
+## Repository Information
+- Name: HENRY9300807/vision-sorter
+- Description:  sorting vision tool
+- Default Branch: main
+- Stars: 0
+- Issues: 702
+
+## File Contents
+
+### main.py
+
+```
+import sys
+import os
+import subprocess
+
+# --- CI 가드(권장) ---
+# CI 환경에서는 디스플레이가 없으므로 Qt를 오프스크린으로 전환
+if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # 카메라/PLC 등 하드웨어 초기화는 우회하거나 목킹 권장
+    # 예: USE_FAKE_CAMERA = True
+
+from PyQt5 import QtWidgets
+
+# UI 클래스
+from ui.color_definition import PhotoViewer
+# 🎯 색상 정의 불러오기/저장
+from package.color_utils import load_defs, save_defs
+
+
+if __name__ == "__main__":
+    # ── 실행 시 색상 정의 불러오기
+    load_defs()
+
+    # ── 백그라운드 스크립트 실행
+    base_dir = os.path.dirname(__file__)
+    script_path1 = os.path.join(base_dir, "package", "capture_96_limit.py")
+
+    cap_proc = None
+    try:
+        cap_proc = subprocess.Popen([sys.executable, script_path1])
+    except Exception as e:
+        print(f"⚠️ 캡쳐 프로세스 실행 실패: {e}")
+
+    # ── PyQt 앱 실행
+    app = QtWidgets.QApplication(sys.argv)
+    win = PhotoViewer()
+    win.cap_proc = cap_proc   # ✅ UI에서 Exit 버튼으로 안전하게 종료할 수 있도록 전달
+    win.show()
+    code = app.exec_()
+
+    # ── 종료 시 색상 정의 저장 (Exit 버튼에서도 호출되지만 안전망)
+    save_defs()
+
+    # ── 혹시 프로세스가 남아 있다면 정리
+    if cap_proc and cap_proc.poll() is None:
+        cap_proc.terminate()
+        print("📷 백그라운드 캡쳐 프로세스 종료됨")
+
+```
+
+## Issues
+
+Total Issues: 0
+
