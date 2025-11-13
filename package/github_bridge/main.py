@@ -49,7 +49,16 @@ def _bearer_headers() -> Dict[str, str]:
 
 
 def _gh_get(path: str, params: Dict[str, Any] | None = None, accept: Optional[str] = None) -> httpx.Response:
-    headers = _bearer_headers()
+    try:
+        headers = _bearer_headers()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"인증 설정 오류: {str(e)}. GITHUB_TOKEN 환경변수를 설정하세요."
+        )
+    
     if accept:
         headers["Accept"] = accept
     with httpx.Client(timeout=30.0) as s:
