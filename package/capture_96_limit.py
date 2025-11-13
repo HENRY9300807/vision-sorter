@@ -64,7 +64,7 @@ def configure_camera(camera: pylon.InstantCamera):
     if hasattr(camera, "DecimationVertical"):
         _try_set_int_feature(camera.DecimationVertical, CAMERA_DECIM_V, "DecimationV")
 
-    # 픽셀 포맷 컨버
+    # 픽셀 포맷 컨버터
     converter = pylon.ImageFormatConverter()
     converter.OutputPixelFormat = pylon.PixelType_BGR8packed
     converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
