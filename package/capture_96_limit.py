@@ -50,6 +50,7 @@ def _try_set_int_feature(node, value, name):
 def configure_camera(camera: pylon.InstantCamera):
     """binning/decimation만 시도 (ROI 제외)"""
     # TODO: mm/px 정밀 캘리브레이션 파이프라인 추가
+    # Issue URL: https://github.com/HENRY9300807/vision-sorter/issues/3
     #  assignees: your-github-id
     #  labels: calibration, vision
     #  milestone: MVP-v1
