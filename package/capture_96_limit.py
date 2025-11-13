@@ -49,12 +49,7 @@ def _try_set_int_feature(node, value, name):
 
 def configure_camera(camera: pylon.InstantCamera):
     """binning/decimation만 시도 (ROI 제외)"""
-    # TODO: mm/px 정밀 캘리브레이션 파이프라인 추가
-    # Issue URL: https://github.com/HENRY9300807/vision-sorter/issues/3
-    #  assignees: your-github-id
-    #  labels: calibration, vision
-    #  milestone: MVP-v1
-    #  (본문) 체스보드 10장 이상 촬영 → 전역/행별 스케일 
+
     camera.Open()
 
     # --- Binning ---
@@ -69,7 +64,7 @@ def configure_camera(camera: pylon.InstantCamera):
     if hasattr(camera, "DecimationVertical"):
         _try_set_int_feature(camera.DecimationVertical, CAMERA_DECIM_V, "DecimationV")
 
-    # 픽셀 포맷 컨버터
+    # 픽셀 포맷 컨버
     converter = pylon.ImageFormatConverter()
     converter.OutputPixelFormat = pylon.PixelType_BGR8packed
     converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
