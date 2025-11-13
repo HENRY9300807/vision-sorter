@@ -15,8 +15,22 @@ from PyQt5.QtGui import QImage
 from ui.scribble_sync import ScribbleView, qimage_from_path, link_views
 
 
-LEFT_PATH = os.environ.get("LEFT_IMG", "left.jpg")    # 필요 시 env로 경로 지정
-RIGHT_PATH = os.environ.get("RIGHT_IMG", "right.jpg") # 없으면 left를 축소해 사용
+# 프로젝트의 이미지 사용
+from package.operation import PICTURE_DIR
+
+LEFT_PATH = os.environ.get("LEFT_IMG", None)
+RIGHT_PATH = os.environ.get("RIGHT_IMG", None)
+
+# 이미지 경로가 지정되지 않으면 프로젝트의 picture 폴더에서 찾기
+if LEFT_PATH is None:
+    picture_files = sorted(PICTURE_DIR.glob("frame_*.jpg"))
+    if picture_files:
+        LEFT_PATH = str(picture_files[0])
+    else:
+        LEFT_PATH = "left.jpg"  # 기본값
+
+if RIGHT_PATH is None:
+    RIGHT_PATH = "right.jpg"  # 없으면 left를 축소해 사용
 
 
 def main():
