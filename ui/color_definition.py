@@ -54,6 +54,22 @@ class PhotoViewer(QtWidgets.QDialog):
         self.pending_colors = {}  # 임시 RGB 저장
         self.real_photo.viewport().installEventFilter(self)
 
+        # === 스크리블 동기화 연결 (왼쪽 → 오른쪽) ===
+        try:
+            from ui.sync_attach import attach_sync
+            # 이미지가 로드된 후에만 동기화 활성화 (show_photo에서 이미지 로드됨)
+            if self.pixmap_item and self.pixelmap_item:
+                self.sync_filter = attach_sync(
+                    self.real_photo,
+                    self.pixel_view,
+                    brush_radius=8,
+                    color=QtGui.QColor(255, 0, 0, 220)  # 반투명 빨강
+                )
+                print("✅ 스크리블 동기화 활성화됨 (왼쪽 → 오른쪽)")
+        except Exception as e:
+            print(f"⚠️ 스크리블 동기화 연결 실패: {e}")
+            self.sync_filter = None
+
         # main.py에서 주입 가능
         self.cap_proc = None
 
@@ -93,6 +109,21 @@ class PhotoViewer(QtWidgets.QDialog):
 
         # 오른쪽: 분류 결과
         self.update_pixel_view()
+
+        # === 이미지 로드 후 스크리블 동기화 재연결 ===
+        if hasattr(self, 'sync_filter') and self.sync_filter is None:
+            try:
+                from ui.sync_attach import attach_sync
+                if self.pixmap_item and self.pixelmap_item:
+                    self.sync_filter = attach_sync(
+                        self.real_photo,
+                        self.pixel_view,
+                        brush_radius=8,
+                        color=QtGui.QColor(255, 0, 0, 220)
+                    )
+                    print("✅ 스크리블 동기화 활성화됨")
+            except Exception as e:
+                print(f"⚠️ 스크리블 동기화 연결 실패: {e}")
 
     def next_photo(self):
         self.files = self._scan_files()
