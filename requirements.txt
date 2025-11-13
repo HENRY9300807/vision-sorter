@@ -1,7 +1,0 @@
-# 프로젝트 필수 의존성
-opencv-python>=4.5.0
-pypylon>=2.0.0
-PyQt5>=5.15.0
-numpy>=1.20.0
-matplotlib>=3.3.0
-
