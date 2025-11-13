@@ -1,0 +1,44 @@
+name: Push Summary
+on:
+  push:
+    branches: [ "**" ]
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Build push summary
+        id: summary
+        run: |
+          echo "## 📦 Push Summary" > summary.md
+          echo "" >> summary.md
+          echo "- Branch: ${{ github.ref_name }}" >> summary.md
+          echo "- Pusher: ${{ github.actor }}" >> summary.md
+          echo "- Commit(s):" >> summary.md
+          git log -1 --pretty=format:"  - %h %s (%an)" >> summary.md
+          echo "" >> summary.md
+          echo "### Changed files" >> summary.md
+          git diff --name-status HEAD~1 HEAD >> summary.md || true
+          echo "" >> summary.md
+          echo "### Diff (first 200 lines)" >> summary.md
+          git --no-pager diff --unified=1 HEAD~1 HEAD | head -n 200 >> summary.md || true
+          SUMMARY="$(cat summary.md)"
+          SUMMARY_ESCAPED="${SUMMARY//'%'/'%25'}"
+          SUMMARY_ESCAPED="${SUMMARY_ESCAPED//$'\n'/'%0A'}"
+          SUMMARY_ESCAPED="${SUMMARY_ESCAPED//$'\r'/'%0D'}"
+          echo "body=$SUMMARY_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Post to feed issue
+        uses: actions-ecosystem/action-create-comment@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          number: 1
+          body: ${{ steps.summary.outputs.body }}
