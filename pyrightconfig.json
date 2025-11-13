@@ -9,7 +9,8 @@
         "**/.venv",
         "**/node_modules",
         "**/picture",
-        "**/data/labels"
+        "**/data/labels",
+        "**/github_bridge"
     ],
     "venvPath": ".",
     "venv": ".venv",
@@ -17,6 +18,7 @@
     "pythonPlatform": "Windows",
     "typeCheckingMode": "basic",
     "reportMissingImports": "warning",
-    "reportMissingTypeStubs": false
+    "reportMissingTypeStubs": false,
+    "reportMissingModuleSource": false
 }
 
