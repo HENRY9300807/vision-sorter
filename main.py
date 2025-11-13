@@ -1,6 +1,14 @@
 import sys
 import os
 import subprocess
+
+# --- CI 가드(권장) ---
+# CI 환경에서는 디스플레이가 없으므로 Qt를 오프스크린으로 전환
+if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # 카메라/PLC 등 하드웨어 초기화는 우회하거나 목킹 권장
+    # 예: USE_FAKE_CAMERA = True
+
 from PyQt5 import QtWidgets
 
 # UI 클래스
