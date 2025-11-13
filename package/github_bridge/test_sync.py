@@ -66,8 +66,8 @@ def test_sync_script():
     
     # watchdog 확인
     try:
-        import watchdog
-        print(f"[OK] watchdog 설치됨 (버전: {watchdog.__version__})")
+        from watchdog import observers
+        print("[OK] watchdog 설치됨")
     except ImportError:
         print("[오류] watchdog이 설치되지 않았습니다.")
         print("      설치: pip install watchdog")
