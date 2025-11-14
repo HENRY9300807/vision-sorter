@@ -266,16 +266,27 @@ class PhotoViewer(QtWidgets.QDialog):
                         h_img, w_img = self.current_img.shape[:2]
                         scale_x, scale_y = w_pix / w_img, h_pix / h_img
                         
-                        # 원본 이미지에서 rgb_set과 일치하는 픽셀 찾기
+                        # 원본 이미지에서 rgb_set과 일치하는 픽셀 찾기 (벡터화)
+                        import numpy as np
                         img_rgb = cv2.cvtColor(self.current_img, cv2.COLOR_BGR2RGB)
-                        for y in range(h_img):
-                            for x in range(w_img):
-                                pixel_rgb = tuple(img_rgb[y, x])
-                                if pixel_rgb in rgb_set:
-                                    px = int(x * scale_x)
-                                    py = int(y * scale_y)
-                                    if 0 <= px < w_pix and 0 <= py < h_pix:
-                                        overlay_pixel_map[py, px] = (0, 255, 0)  # 초록 강조
+                        
+                        # 벡터화된 방식으로 마스크 생성
+                        img_flat = img_rgb.reshape(-1, 3)
+                        rgb_array = np.array(list(rgb_set), dtype=np.uint8)
+                        
+                        # 각 픽셀이 rgb_set에 있는지 확인
+                        mask_flat = np.isin(
+                            img_flat.view([('', img_rgb.dtype)] * 3),
+                            rgb_array.view([('', np.uint8)] * 3)
+                        ).reshape(h_img, w_img)
+                        
+                        # 다운스케일된 좌표로 변환하여 픽셀맵에 초록 표시
+                        y_indices, x_indices = np.where(mask_flat)
+                        if len(y_indices) > 0:
+                            px_indices = (x_indices * scale_x).astype(int)
+                            py_indices = (y_indices * scale_y).astype(int)
+                            valid = (px_indices >= 0) & (px_indices < w_pix) & (py_indices >= 0) & (py_indices < h_pix)
+                            overlay_pixel_map[py_indices[valid], px_indices[valid]] = (0, 255, 0)  # 초록 강조
                         
                         pixmap2 = to_pixmap(overlay_pixel_map, QtGui)
                         self.pixel_scene.clear()
