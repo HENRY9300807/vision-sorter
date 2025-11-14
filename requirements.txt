@@ -1,0 +1,13 @@
+# 핵심 의존성 (앱 실행에 필수)
+# 설치: pip install -r requirements.txt
+
+# GUI
+PyQt5>=5.15.0
+
+# 이미지 처리
+opencv-python>=4.5.0
+numpy>=1.20.0
+
+# 하드웨어 (Basler 카메라)
+pypylon>=2.0.0
+

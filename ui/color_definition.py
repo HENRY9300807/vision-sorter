@@ -202,6 +202,8 @@ class PhotoViewer(QtWidgets.QDialog):
                     h, w = self.current_img.shape[:2]
                     if 0 <= x < w and 0 <= y < h:
                         self.selected_points.append((x, y))
+                        
+                        # 왼쪽: 원본 + 드래그 경로 오버레이
                         overlay = draw_points(
                             self.current_img,
                             self.selected_points[-DRAW_POINT_LIMIT:],
@@ -210,6 +212,25 @@ class PhotoViewer(QtWidgets.QDialog):
                         pixmap = to_pixmap(overlay, QtGui)
                         self.scene.clear()
                         self.pixmap_item = self.scene.addPixmap(pixmap)
+                        
+                        # 오른쪽: 픽셀맵 + 동일 좌표 드래그 경로 오버레이
+                        if self.current_pixel_map is not None:
+                            overlay_map = self.current_pixel_map.copy()
+                            h_pix, w_pix = overlay_map.shape[:2]
+                            scale_x, scale_y = w_pix / w, h_pix / h
+                            px = int(x * scale_x)
+                            py = int(y * scale_y)
+                            if 0 <= px < w_pix and 0 <= py < h_pix:
+                                # 최근 드래그 경로를 우측에도 그리기
+                                for (sx, sy) in self.selected_points[-DRAW_POINT_LIMIT:]:
+                                    spx = int(sx * scale_x)
+                                    spy = int(sy * scale_y)
+                                    if 0 <= spx < w_pix and 0 <= spy < h_pix:
+                                        cv2.circle(overlay_map, (spx, spy), max(1, int(DRAW_POINT_RADIUS * scale_x)), (0, 0, 255), -1)
+                                pixmap2 = to_pixmap(overlay_map, QtGui)
+                                self.pixel_scene.clear()
+                                self.pixelmap_item = self.pixel_scene.addPixmap(pixmap2)
+                                self.pixel_view.fitInView(self.pixelmap_item, QtCore.Qt.KeepAspectRatio)
                     return True
 
             elif event.type() == QtCore.QEvent.MouseButtonRelease:
