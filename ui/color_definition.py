@@ -69,10 +69,28 @@ class PhotoViewer(QtWidgets.QDialog):
 
     # === 오른쪽 뷰 갱신 헬퍼 ===
     def update_pixel_view(self):
+        """픽셀맵을 생성하고 오른쪽 뷰에 표시. 드래그 경로가 있으면 함께 오버레이."""
         if self.current_img is None:
             self.pixel_scene.clear()
+            self.current_pixel_map = None
             return
         pixel_map = make_pixel_map(self.current_img)
+        self.current_pixel_map = pixel_map.copy()  # 저장 (우측 동기화용)
+        
+        # 드래그 경로가 있으면 오버레이
+        if self.selected_points:
+            overlay_map = pixel_map.copy()
+            h_pix, w_pix = overlay_map.shape[:2]
+            h_img, w_img = self.current_img.shape[:2]
+            scale_x, scale_y = w_pix / w_img, h_pix / h_img
+            
+            for (x, y) in self.selected_points[-DRAW_POINT_LIMIT:]:
+                px = int(x * scale_x)
+                py = int(y * scale_y)
+                if 0 <= px < w_pix and 0 <= py < h_pix:
+                    cv2.circle(overlay_map, (px, py), max(1, int(DRAW_POINT_RADIUS * scale_x)), (0, 0, 255), -1)
+            pixel_map = overlay_map
+        
         pixmap2 = to_pixmap(pixel_map, QtGui)
         self.pixel_scene.clear()
         self.pixelmap_item = self.pixel_scene.addPixmap(pixmap2)
