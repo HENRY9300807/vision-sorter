@@ -18,17 +18,23 @@ class PhotoViewer(QtWidgets.QDialog):
         super().__init__(parent)
         uic.loadUi(str(UI_FILE), self)
 
+        # 🔷 드로잉/임시 색상/우측픽셀맵 상태를 최우선 초기화 (안전)
+        self.drawing = False
+        self.selected_points = []
+        self.pending_colors = {}          # {label: set(RGB)}
+        self.current_img = None           # 좌측 원본
+        self.current_pixel_map = None     # 우측 분류 결과 원본(BGR)
+        self.cap_proc = None              # main.py에서 주입
+
         # === 왼쪽(real_photo) : 원본 ===
         self.scene = QtWidgets.QGraphicsScene(self)
         self.real_photo.setScene(self.scene)
         self.pixmap_item = None
-        self.current_img = None
 
         # === 오른쪽(pixel_view) : 분류 결과 ===
         self.pixel_scene = QtWidgets.QGraphicsScene(self)
         self.pixel_view.setScene(self.pixel_scene)
         self.pixelmap_item = None
-        self.current_pixel_map = None  # 현재 픽셀맵 저장 (우측 동기화용)
 
         self.files = self._scan_files()
         self.index = 0
@@ -45,19 +51,14 @@ class PhotoViewer(QtWidgets.QDialog):
         self.timer.timeout.connect(self.update_photos)
         self.timer.start(UI_UPDATE_INTERVAL)
 
+        # 이벤트 필터를 먼저 설치해도 안전 (위에서 멤버 초기화 완료)
+        self.real_photo.viewport().installEventFilter(self)
+
+        # 초기 이미지 표시
         if self.files:
             self.show_photo(self.files[self.index])
         else:
             self._show_message("폴더가 비어 있습니다")
-
-        # 드로잉 관련(왼쪽에서만 드래그)
-        self.drawing = False
-        self.selected_points = []
-        self.pending_colors = {}  # 임시 RGB 저장
-        self.real_photo.viewport().installEventFilter(self)
-
-        # main.py에서 주입 가능
-        self.cap_proc = None
 
     # -------------------------------
     def _scan_files(self):
