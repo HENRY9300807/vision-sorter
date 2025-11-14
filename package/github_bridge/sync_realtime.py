@@ -160,6 +160,18 @@ class GitSyncHandler(FileSystemEventHandler):
         except Exception as e:
             return False, str(e)
     
+    def _get_current_branch(self) -> str:
+        """현재 Git 브랜치 이름 가져오기"""
+        success, output = self._run_git_command(["branch", "--show-current"])
+        if success and output.strip():
+            return output.strip()
+        # fallback: symbolic-ref 사용
+        success, output = self._run_git_command(["symbolic-ref", "--short", "HEAD"])
+        if success and output.strip():
+            return output.strip()
+        # 최후의 수단: 기본값
+        return "main"
+    
     def _commit_and_push(self, files: List[str]):
         """변경된 파일들을 커밋하고 푸시"""
         if not files:
@@ -200,13 +212,11 @@ class GitSyncHandler(FileSystemEventHandler):
         
         # 푸시
         if self.auto_push:
-            success, output = self._run_git_command(["push", "origin", "main"])
-            if not success:
-                # main 브랜치가 없으면 master 시도
-                success, output = self._run_git_command(["push", "origin", "master"])
+            current_branch = self._get_current_branch()
+            success, output = self._run_git_command(["push", "origin", current_branch])
             
             if success:
-                print(f"[성공] GitHub에 푸시 완료")
+                print(f"[성공] GitHub에 푸시 완료 (브랜치: {current_branch})")
             else:
                 print(f"[경고] GitHub 푸시 실패: {output}")
                 print("      나중에 수동으로 'git push'를 실행하세요.")
@@ -221,23 +231,22 @@ class GitSyncHandler(FileSystemEventHandler):
             print(f"[오류] Git fetch 실패: {output}")
             return
         
+        # 현재 브랜치 가져오기
+        current_branch = self._get_current_branch()
+        remote_branch = f"origin/{current_branch}"
+        
         # 로컬과 원격의 차이 확인
-        success, output = self._run_git_command(["log", "HEAD..origin/main", "--oneline"])
-        if not success:
-            # main 브랜치가 없으면 master 시도
-            success, output = self._run_git_command(["log", "HEAD..origin/master", "--oneline"])
+        success, output = self._run_git_command(["log", f"HEAD..{remote_branch}", "--oneline"])
         
         if output.strip():
             print(f"[발견] GitHub에 새로운 변경사항이 있습니다: {len(output.strip().split(chr(10)))}개 커밋")
             print("[동기화] 변경사항 가져오는 중...")
             
             # pull
-            success, output = self._run_git_command(["pull", "origin", "main", "--no-edit"])
-            if not success:
-                success, output = self._run_git_command(["pull", "origin", "master", "--no-edit"])
+            success, output = self._run_git_command(["pull", "origin", current_branch, "--no-edit"])
             
             if success:
-                print("[성공] GitHub에서 변경사항 가져오기 완료")
+                print(f"[성공] GitHub에서 변경사항 가져오기 완료 (브랜치: {current_branch})")
             else:
                 print(f"[경고] Git pull 실패: {output}")
                 print("      충돌이 있을 수 있습니다. 수동으로 확인하세요.")

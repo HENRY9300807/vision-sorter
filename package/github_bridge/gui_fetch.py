@@ -205,6 +205,19 @@ class GitHubFetchGUI(QMainWindow):
         remove_file_btn.clicked.connect(self.remove_file)
         files_layout.addWidget(remove_file_btn)
         
+        # 자동 파일 탐색 버튼
+        auto_files_btn = QPushButton("🔍 Auto Find Files")
+        auto_files_btn.clicked.connect(self.auto_find_files)
+        auto_files_btn.setToolTip("레포지토리에서 주요 파일을 자동으로 탐색합니다 (main.py, README.md 등)")
+        files_layout.addWidget(auto_files_btn)
+        
+        # 모든 파일 가져오기 버튼
+        all_files_btn = QPushButton("📁 Get All Files")
+        all_files_btn.clicked.connect(self.get_all_files)
+        all_files_btn.setToolTip("브랜치의 모든 파일을 가져옵니다 (재귀적 탐색)")
+        all_files_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        files_layout.addWidget(all_files_btn)
+        
         files_group.setLayout(files_layout)
         layout.addWidget(files_group)
         
@@ -272,6 +285,84 @@ class GitHubFetchGUI(QMainWindow):
         if current_item:
             self.file_list.takeItem(self.file_list.row(current_item))
 
+    def auto_find_files(self):
+        """자동으로 주요 파일 탐색"""
+        owner = self.owner_input.text().strip()
+        repo = self.repo_input.text().strip()
+        
+        if not owner or not repo:
+            QMessageBox.warning(self, "Error", "Owner and Repository를 먼저 입력하세요!")
+            return
+        
+        self.progress_label.setText("주요 파일 탐색 중...")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        
+        try:
+            # fetch_for_ai의 get_default_files 함수 사용
+            from package.github_bridge.fetch_for_ai import get_default_files
+            files = get_default_files(owner, repo)
+            
+            # 파일 목록 업데이트
+            self.file_list.clear()
+            for file_path in files:
+                self.file_list.addItem(file_path)
+            
+            self.progress_bar.setVisible(False)
+            self.progress_label.setText(f"✅ {len(files)}개 주요 파일 발견: {', '.join(files)}")
+            QMessageBox.information(self, "Success", f"자동으로 {len(files)}개 주요 파일을 찾았습니다!")
+        except Exception as e:
+            self.progress_bar.setVisible(False)
+            self.progress_label.setText(f"오류: {str(e)}")
+            QMessageBox.warning(self, "Error", f"파일 탐색 실패:\n{str(e)}")
+    
+    def get_all_files(self):
+        """브랜치의 모든 파일 가져오기"""
+        owner = self.owner_input.text().strip()
+        repo = self.repo_input.text().strip()
+        
+        if not owner or not repo:
+            QMessageBox.warning(self, "Error", "Owner and Repository를 먼저 입력하세요!")
+            return
+        
+        # 확인 다이얼로그
+        reply = QMessageBox.question(
+            self, "Get All Files",
+            f"{owner}/{repo} 브랜치의 모든 파일을 가져옵니다.\n"
+            f"파일이 많으면 시간이 걸릴 수 있습니다.\n\n"
+            f"계속하시겠습니까?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        self.progress_label.setText("모든 파일 탐색 중... (시간이 걸릴 수 있습니다)")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        self.file_list.clear()
+        
+        try:
+            # fetch_for_ai의 get_all_files 함수 사용
+            from package.github_bridge.fetch_for_ai import get_all_files
+            files = get_all_files(owner, repo)
+            
+            # 파일 목록 업데이트
+            for file_path in files:
+                self.file_list.addItem(file_path)
+            
+            self.progress_bar.setVisible(False)
+            self.progress_label.setText(f"✅ {len(files)}개 파일 발견!")
+            QMessageBox.information(
+                self, "Success", 
+                f"✅ {len(files)}개 파일을 모두 찾았습니다!\n\n"
+                f"이제 'Fetch Repository Info' 버튼을 클릭하세요."
+            )
+        except Exception as e:
+            self.progress_bar.setVisible(False)
+            self.progress_label.setText(f"오류: {str(e)}")
+            QMessageBox.critical(self, "Error", f"파일 탐색 실패:\n{str(e)}")
+    
     def start_fetch(self):
         owner = self.owner_input.text().strip()
         repo = self.repo_input.text().strip()
@@ -283,6 +374,23 @@ class GitHubFetchGUI(QMainWindow):
         files = []
         for i in range(self.file_list.count()):
             files.append(self.file_list.item(i).text())
+        
+        # 파일이 없으면 자동 탐색 제안
+        if not files:
+            reply = QMessageBox.question(
+                self, "No Files Selected",
+                "파일이 선택되지 않았습니다.\n자동으로 주요 파일을 탐색하시겠습니까?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self.auto_find_files()
+                # 자동 탐색 후 다시 파일 목록 가져오기
+                files = []
+                for i in range(self.file_list.count()):
+                    files.append(self.file_list.item(i).text())
+            else:
+                QMessageBox.warning(self, "Error", "최소 1개 이상의 파일을 선택하세요!")
+                return
         
         # UI 비활성화
         self.fetch_btn.setEnabled(False)

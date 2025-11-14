@@ -142,6 +142,82 @@ def format_for_ai(owner: str, repo: str, files: List[str] = None, issues: bool =
     return "".join(output)
 
 
+def get_all_files(owner: str, repo: str, path: str = "", ref: str = None) -> List[str]:
+    """모든 파일 목록 재귀적으로 탐색"""
+    if ref is None:
+        ref = fetch_repo_info(owner, repo).get("default_branch", "main")
+    
+    all_files = []
+    ignore_dirs = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", 
+                   "node_modules", ".idea", ".vscode", "dist", "build", ".env"}
+    ignore_extensions = {".pyc", ".pyo", ".pyd", ".so", ".swp", ".swo", "~", ".DS_Store", 
+                        ".Thumbs.db", ".zip"}
+    
+    def scan_directory(dir_path: str):
+        try:
+            entries = get_file_tree(owner, repo, dir_path, ref)
+            for entry in entries:
+                name = entry.get("name", "")
+                entry_type = entry.get("type", "")
+                entry_path = f"{dir_path}/{name}" if dir_path else name
+                
+                # 디렉토리인 경우
+                if entry_type == "dir":
+                    if name not in ignore_dirs and not name.startswith("."):
+                        scan_directory(entry_path)
+                # 파일인 경우
+                elif entry_type == "file":
+                    # 무시할 확장자 확인
+                    should_ignore = False
+                    for ext in ignore_extensions:
+                        if name.endswith(ext):
+                            should_ignore = True
+                            break
+                    
+                    if not should_ignore:
+                        all_files.append(entry_path)
+        except Exception as e:
+            print(f"Warning: Cannot scan directory {dir_path}: {e}", file=sys.stderr)
+    
+    scan_directory(path)
+    return sorted(all_files)
+
+
+def get_default_files(owner: str, repo: str) -> List[str]:
+    """기본 파일 목록 자동 탐색"""
+    default_branch = fetch_repo_info(owner, repo).get("default_branch", "main")
+    default_files = []
+    
+    # 루트 디렉토리에서 주요 파일 찾기
+    try:
+        root_files = get_file_tree(owner, repo, "", default_branch)
+        # 우선순위가 높은 파일들
+        priority_extensions = [".py", ".md", ".txt", ".yml", ".yaml", ".json"]
+        priority_names = ["main.py", "README.md", "requirements.txt", "setup.py"]
+        
+        for file_info in root_files:
+            name = file_info.get("name", "")
+            if name in priority_names:
+                default_files.append(name)
+        
+        # 추가로 .py 파일 2-3개
+        py_files = [f.get("name") for f in root_files if f.get("name", "").endswith(".py") and f.get("name") not in default_files]
+        default_files.extend(py_files[:3])
+        
+        # 중복 제거 및 순서 유지
+        seen = set()
+        result = []
+        for f in default_files:
+            if f and f not in seen:
+                seen.add(f)
+                result.append(f)
+        
+        return result[:5]  # 최대 5개만
+    except Exception:
+        # 기본값
+        return ["main.py"]
+    
+
 def main():
     import argparse
     
@@ -149,17 +225,47 @@ def main():
     parser.add_argument("--owner", default="HENRY9300807", help="레포지토리 소유자")
     parser.add_argument("--repo", default="vision-sorter", help="레포지토리 이름")
     parser.add_argument("--files", nargs="+", help="가져올 파일 경로 (예: main.py package/capture_96_limit.py)")
+    parser.add_argument("--all-files", action="store_true", help="브랜치의 모든 파일 가져오기 (재귀적 탐색)")
+    parser.add_argument("--auto-files", action="store_true", default=True, help="파일 미지정 시 자동으로 주요 파일 가져오기 (기본값: True)")
+    parser.add_argument("--no-auto-files", dest="auto_files", action="store_false", help="자동 파일 탐색 비활성화")
     parser.add_argument("--no-issues", action="store_true", help="이슈 목록 제외")
     parser.add_argument("--max-issues", type=int, default=50, help="최대 이슈 개수")
     parser.add_argument("--output", help="출력 파일 경로 (없으면 stdout)")
     
     args = parser.parse_args()
     
+    # 파일 목록 결정
+    files = args.files
+    if args.all_files:
+        print("브랜치의 모든 파일을 탐색합니다...", file=sys.stderr)
+        try:
+            files = get_all_files(args.owner, args.repo)
+            if files:
+                print(f"✅ {len(files)}개 파일 발견", file=sys.stderr)
+                print(f"파일 목록: {', '.join(files[:10])}{' ...' if len(files) > 10 else ''}", file=sys.stderr)
+            else:
+                print("경고: 파일을 찾을 수 없습니다.", file=sys.stderr)
+        except Exception as e:
+            print(f"전체 파일 탐색 실패: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+    elif not files and args.auto_files:
+        print("파일을 지정하지 않았습니다. 자동으로 주요 파일을 탐색합니다...", file=sys.stderr)
+        try:
+            files = get_default_files(args.owner, args.repo)
+            if files:
+                print(f"자동 탐색된 파일: {', '.join(files)}", file=sys.stderr)
+            else:
+                print("경고: 자동으로 파일을 찾을 수 없습니다. --files 옵션으로 파일을 지정하세요.", file=sys.stderr)
+        except Exception as e:
+            print(f"자동 파일 탐색 실패: {e}", file=sys.stderr)
+            print("--files 옵션으로 파일을 직접 지정하세요.", file=sys.stderr)
+    
     try:
         result = format_for_ai(
             owner=args.owner,
             repo=args.repo,
-            files=args.files,
+            files=files,
             issues=not args.no_issues,
             max_issues=args.max_issues
         )
