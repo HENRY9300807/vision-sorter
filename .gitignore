@@ -32,6 +32,10 @@ Thumbs.db
 picture/
 data/color_defs.json
 
+# Large files
+*.zip
+.github.zip
+
 # Logs
 *.log
 
