@@ -1,6 +1,7 @@
 from pathlib import Path
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
 import cv2
+import numpy as np
 
 from package.image_utils import to_pixmap, draw_points, highlight_rgb, make_pixel_map
 from package.color_utils import add_color_def, save_defs, clear_defs
@@ -267,7 +268,6 @@ class PhotoViewer(QtWidgets.QDialog):
                         scale_x, scale_y = w_pix / w_img, h_pix / h_img
                         
                         # 원본 이미지에서 rgb_set과 일치하는 픽셀 찾기 (벡터화)
-                        import numpy as np
                         img_rgb = cv2.cvtColor(self.current_img, cv2.COLOR_BGR2RGB)
                         
                         # 벡터화된 방식으로 마스크 생성
