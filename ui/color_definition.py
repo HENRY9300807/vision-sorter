@@ -258,5 +258,29 @@ class PhotoViewer(QtWidgets.QDialog):
                     pixmap = to_pixmap(overlay, QtGui)
                     self.scene.clear()
                     self.pixmap_item = self.scene.addPixmap(pixmap)
+                    
+                    # 오른쪽 하이라이트: 픽셀맵에서 rgb_set 일치 픽셀만 초록 강조
+                    if self.current_pixel_map is not None:
+                        overlay_pixel_map = self.current_pixel_map.copy()
+                        h_pix, w_pix = overlay_pixel_map.shape[:2]
+                        h_img, w_img = self.current_img.shape[:2]
+                        scale_x, scale_y = w_pix / w_img, h_pix / h_img
+                        
+                        # 원본 이미지에서 rgb_set과 일치하는 픽셀 찾기
+                        img_rgb = cv2.cvtColor(self.current_img, cv2.COLOR_BGR2RGB)
+                        for y in range(h_img):
+                            for x in range(w_img):
+                                pixel_rgb = tuple(img_rgb[y, x])
+                                if pixel_rgb in rgb_set:
+                                    px = int(x * scale_x)
+                                    py = int(y * scale_y)
+                                    if 0 <= px < w_pix and 0 <= py < h_pix:
+                                        overlay_pixel_map[py, px] = (0, 255, 0)  # 초록 강조
+                        
+                        pixmap2 = to_pixmap(overlay_pixel_map, QtGui)
+                        self.pixel_scene.clear()
+                        self.pixelmap_item = self.pixel_scene.addPixmap(pixmap2)
+                        self.pixel_view.fitInView(self.pixelmap_item, QtCore.Qt.KeepAspectRatio)
+                    
                     return True
         return False
