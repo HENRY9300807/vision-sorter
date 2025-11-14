@@ -225,6 +225,12 @@ class PhotoViewer(QtWidgets.QDialog):
                     label = self.get_selected_label()
                     if not label:
                         print("라벨이 선택되지 않았습니다.")
+                        # 가이드 자취 제거 후 우측 분류맵 복구
+                        if self.current_img is not None:
+                            pixmap = to_pixmap(self.current_img, QtGui)
+                            self.scene.clear()
+                            self.pixmap_item = self.scene.addPixmap(pixmap)
+                        self.update_pixel_view()
                         return True
 
                     # 드래그 구간 RGB 수집
@@ -239,41 +245,31 @@ class PhotoViewer(QtWidgets.QDialog):
 
                     print(f"[{label}] {len(rgb_set)}개 RGB 임시 저장됨")
 
-                    # 왼쪽 하이라이트
-                    overlay = highlight_rgb(self.current_img, rgb_set)
-                    pixmap = to_pixmap(overlay, QtGui)
+                    # ✅ (좌) 같은 RGB 전체 하이라이트
+                    overlay_left = highlight_rgb(self.current_img, rgb_set)
+                    pixmap = to_pixmap(overlay_left, QtGui)
                     self.scene.clear()
                     self.pixmap_item = self.scene.addPixmap(pixmap)
                     
-                    # 오른쪽 하이라이트: 픽셀맵에서 rgb_set 일치 픽셀만 초록 강조
+                    # ✅ (우) 좌측과 '동일 좌표 마스크'로 픽셀맵 강조
                     if self.current_pixel_map is not None:
-                        overlay_pixel_map = self.current_pixel_map.copy()
-                        h_pix, w_pix = overlay_pixel_map.shape[:2]
-                        h_img, w_img = self.current_img.shape[:2]
-                        scale_x, scale_y = w_pix / w_img, h_pix / h_img
+                        h, w = self.current_img.shape[:2]
+                        h_pix, w_pix = self.current_pixel_map.shape[:2]
+                        scale_x, scale_y = w_pix / w, h_pix / h
                         
-                        # 원본 이미지에서 rgb_set과 일치하는 픽셀 찾기 (벡터화)
+                        # 좌측에서 선택된 RGB에 해당하는 [좌표 마스크] 생성
                         img_rgb = cv2.cvtColor(self.current_img, cv2.COLOR_BGR2RGB)
+                        mask = np.isin(
+                            img_rgb.reshape(-1, 3).view([('', img_rgb.dtype)] * 3),
+                            np.array(list(rgb_set)).view([('', np.uint8)] * 3)
+                        ).reshape(h, w)
                         
-                        # 벡터화된 방식으로 마스크 생성
-                        img_flat = img_rgb.reshape(-1, 3)
-                        rgb_array = np.array(list(rgb_set), dtype=np.uint8)
+                        # 다운스케일된 좌표로 마스크 변환
+                        mask_resized = cv2.resize(mask.astype(np.uint8), (w_pix, h_pix), interpolation=cv2.INTER_NEAREST).astype(bool)
                         
-                        # 각 픽셀이 rgb_set에 있는지 확인
-                        mask_flat = np.isin(
-                            img_flat.view([('', img_rgb.dtype)] * 3),
-                            rgb_array.view([('', np.uint8)] * 3)
-                        ).reshape(h_img, w_img)
-                        
-                        # 다운스케일된 좌표로 변환하여 픽셀맵에 초록 표시
-                        y_indices, x_indices = np.where(mask_flat)
-                        if len(y_indices) > 0:
-                            px_indices = (x_indices * scale_x).astype(int)
-                            py_indices = (y_indices * scale_y).astype(int)
-                            valid = (px_indices >= 0) & (px_indices < w_pix) & (py_indices >= 0) & (py_indices < h_pix)
-                            overlay_pixel_map[py_indices[valid], px_indices[valid]] = (0, 255, 0)  # 초록 강조
-                        
-                        pixmap2 = to_pixmap(overlay_pixel_map, QtGui)
+                        overlay_right = self.current_pixel_map.copy()
+                        overlay_right[mask_resized] = (0, 255, 0)  # 초록 강조
+                        pixmap2 = to_pixmap(overlay_right, QtGui)
                         self.pixel_scene.clear()
                         self.pixelmap_item = self.pixel_scene.addPixmap(pixmap2)
                         self.pixel_view.fitInView(self.pixelmap_item, QtCore.Qt.KeepAspectRatio)
