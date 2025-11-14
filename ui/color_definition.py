@@ -27,6 +27,7 @@ class PhotoViewer(QtWidgets.QDialog):
         self.pixel_scene = QtWidgets.QGraphicsScene(self)
         self.pixel_view.setScene(self.pixel_scene)
         self.pixelmap_item = None
+        self.current_pixel_map = None  # 현재 픽셀맵 저장 (우측 동기화용)
 
         self.files = self._scan_files()
         self.index = 0
